@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>나홀로 코스 추천 플래너 - 혼자서도 즐거운 하루</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts (Noto Sans KR) -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        sage: {
+                            50: '#f4f7f4',
+                            100: '#e3ebe3',
+                            500: '#5c835c',
+                            600: '#486848',
+                            700: '#385238',
+                        },
+                        warmbg: '#faf8f5',
+                    },
+                    fontFamily: {
+                        sans: ['Noto Sans KR', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #faf8f5;
+            font-family: 'Noto Sans KR', sans-serif;
+            color: #334155;
+        }
+        
+        /* Smooth transitions */
+        .card-hover {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.08);
+        }
+
+        /* Timeline connector */
+        .timeline-line {
+            position: absolute;
+            left: 24px;
+            top: 48px;
+            bottom: 24px;
+            width: 2px;
+            background-color: #e2e8f0;
+            z-index: 0;
+        }
+
+        /* Roulette Animation */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(1440deg); }
+        }
+        .spinning {
+            animation: spin 1.5s cubic-bezier(0.15, 0.85, 0.35, 1.2) infinite;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between antialiased selection:bg-sage-100 selection:text-sage-700">
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-xl flex items-center space-x-3 pointer-events-none">
+        <i class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+        <span id="toast-message" class="text-sm font-medium">알림 메시지</span>
+    </div>
+
+    <!-- Header Navigation -->
+    <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="resetFilters()">
+                <div class="w-10 h-10 rounded-2xl bg-sage-500 text-white flex items-center justify-center text-xl font-bold shadow-md shadow-sage-500/20">
+                    <i class="fa-solid fa-person-walking"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight text-slate-800">나홀로 코스</h1>
+                    <p class="text-[10px] text-sage-600 font-medium tracking-wide">SOLO ROUTE PLANNER</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2 sm:space-x-4">
+                <button onclick="openRouletteModal()" class="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl transition flex items-center space-x-1.5 border border-amber-200/60">
+                    <i class="fa-solid fa-dice text-amber-500"></i>
+                    <span class="hidden xs:inline">랜덤</span> 코스 뽑기
+                </button>
+                <button onclick="openSavedModal()" class="relative px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center space-x-1.5">
+                    <i class="fa-solid fa-bookmark text-slate-500"></i>
+                    <span>저장 리스트</span>
+                    <span id="saved-count" class="bg-sage-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">0</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex-grow w-full">
+        
+        <!-- Hero Section -->
+        <section class="mb-8 text-center max-w-2xl mx-auto">
+            <span class="inline-block px-3 py-1 bg-sage-100 text-sage-700 rounded-full text-xs font-semibold mb-3">
+                <i class="fa-solid fa-heart text-sage-500 mr-1"></i> 나에게 집중하는 완벽한 라이프
+            </span>
+            <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight leading-snug mb-3">
+                혼자서도 즐거운 하루,<br class="sm:hidden"> 어디로 떠나볼까요?
+            </h2>
+            <p class="text-slate-500 text-xs sm:text-sm">
+                눈치 보지 않는 완벽한 혼밥, 여유로운 동네 산책, 나의 취향에 맞춘 특별한 체험까지.<br class="hidden sm:block">
+                당신의 홀로 여정을 추천해 드립니다.
+            </p>
+        </section>
+
+        <!-- Filter Controls -->
+        <section class="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100 mb-8 max-w-4xl mx-auto">
+            <div class="space-y-5">
+                
+                <!-- Area Selector (3-Step Cascading) -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                        <i class="fa-solid fa-location-dot text-sage-500 mr-1"></i> 추천 지역 선택 (서울/경기 집중)
+                    </label>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="relative">
+                            <select id="sido-select" onchange="updateSigungu()" class="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-800 py-3 px-4 pr-10 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-sage-500 focus:bg-white transition cursor-pointer text-sm">
+                                <!-- Options injected by JS -->
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                                <i class="fa-solid fa-chevron-down text-xs"></i>
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <select id="sigungu-select" onchange="updateDong()" class="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-800 py-3 px-4 pr-10 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-sage-500 focus:bg-white transition cursor-pointer text-sm">
+                                <!-- Options injected by JS -->
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                                <i class="fa-solid fa-chevron-down text-xs"></i>
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <select id="dong-select" onchange="filterCourses()" class="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-800 py-3 px-4 pr-10 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-sage-500 focus:bg-white transition cursor-pointer text-sm">
+                                <!-- Options injected by JS -->
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                                <i class="fa-solid fa-chevron-down text-xs"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Theme Categories (Flex-wrap UI Fix) -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                        <i class="fa-solid fa-compass text-sage-500 mr-1"></i> 컨텐츠 테마
+                    </label>
+                    <div class="flex flex-wrap gap-2" id="theme-buttons">
+                        <button onclick="setTheme('체험')" data-theme="체험" class="theme-btn flex-1 min-w-[100px] whitespace-nowrap px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition flex items-center justify-center space-x-1.5">
+                            <i class="fa-solid fa-hand-holding-heart text-rose-400"></i>
+                            <span>체험 중심</span>
+                        </button>
+                        <button onclick="setTheme('문화')" data-theme="문화" class="theme-btn flex-1 min-w-[100px] whitespace-nowrap px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition flex items-center justify-center space-x-1.5">
+                            <i class="fa-solid fa-book-open text-indigo-400"></i>
+                            <span>문화 중심</span>
+                        </button>
+                        <button onclick="setTheme('액티비티')" data-theme="액티비티" class="theme-btn flex-1 min-w-[100px] whitespace-nowrap px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition flex items-center justify-center space-x-1.5">
+                            <i class="fa-solid fa-person-biking text-amber-400"></i>
+                            <span>액티비티</span>
+                        </button>
+                        <button onclick="setTheme('힐링')" data-theme="힐링" class="theme-btn flex-1 min-w-[100px] whitespace-nowrap px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition flex items-center justify-center space-x-1.5">
+                            <i class="fa-solid fa-spa text-emerald-400"></i>
+                            <span>힐링 중심</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Course Display Header -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b border-slate-200 gap-3">
+            <div>
+                <span id="current-badge" class="text-xs font-bold text-sage-600 bg-sage-50 px-2.5 py-1 rounded-md border border-sage-100">
+                    전체 테마 보기
+                </span>
+                <h3 class="text-xl font-bold text-slate-800 mt-1" id="course-title-display">
+                    서울특별시 종로구 삼청동 나홀로 추천 코스
+                </h3>
+            </div>
+            
+            <div class="flex items-center space-x-2 text-xs">
+                <button onclick="shareCourse()" class="px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm font-medium transition flex items-center space-x-1.5">
+                    <i class="fa-solid fa-share-nodes text-slate-400"></i>
+                    <span>코스 공유</span>
+                </button>
+                <button onclick="saveCurrentCourse()" class="px-3 py-2 bg-sage-500 hover:bg-sage-600 text-white rounded-lg shadow-sm font-medium transition flex items-center space-x-1.5">
+                    <i class="fa-solid fa-bookmark"></i>
+                    <span>이 코스 저장</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Timeline Route Container -->
+        <div class="relative pl-2 sm:pl-4 mb-12">
+            <!-- Vertical Line -->
+            <div class="timeline-line"></div>
+
+            <div id="course-container" class="space-y-6 relative z-10">
+                <!-- Step Cards injected dynamically -->
+            </div>
+        </div>
+
+        <!-- Custom Bottom Banner -->
+        <section class="bg-gradient-to-r from-slate-800 to-slate-900 text-white rounded-2xl p-6 sm:p-8 shadow-lg text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div class="space-y-2 max-w-xl">
+                <h4 class="text-lg font-bold flex items-center justify-center sm:justify-start gap-2">
+                    <i class="fa-solid fa-compass text-amber-400"></i> 어디 갈지 여전히 고민되시나요?
+                </h4>
+                <p class="text-xs sm:text-sm text-slate-300">
+                    생각지 못한 의외의 장소로 떠나보세요. 무작위 원클릭 뽑기로 당신만의 깜짝 나홀로 일정을 만들어드립니다.
+                </p>
+            </div>
+            <button onclick="openRouletteModal()" class="w-full sm:w-auto px-6 py-3.5 bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold rounded-xl shadow-lg transition transform hover:-translate-y-0.5 whitespace-nowrap text-sm">
+                <i class="fa-solid fa-shuffle mr-2"></i> 랜덤 코스 뽑기 시작
+            </button>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-100 py-6 text-center text-xs text-slate-400">
+        <div class="max-w-6xl mx-auto px-4">
+            <p class="font-medium text-slate-500 mb-1">나홀로 코스 추천 플래너 (Solo Route Planner)</p>
+            <p>혼자서도 충만한 삶을 살아가는 모든 혼놀/혼밥러를 응원합니다.</p>
+        </div>
+    </footer>
+
+    <!-- Spot Detail Modal -->
+    <div id="detail-modal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl transform transition-all">
+            <div class="relative h-48 bg-slate-100 flex items-center justify-center overflow-hidden">
+                <img id="modal-img" src="" alt="Spot Image" class="w-full h-full object-cover">
+                <button onclick="closeModal('detail-modal')" class="absolute top-3 right-3 bg-black/50 hover:bg-black/70 text-white w-8 h-8 rounded-full flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <span id="modal-step-badge" class="absolute bottom-3 left-3 bg-sage-500 text-white text-xs font-bold px-2.5 py-1 rounded-md shadow">
+                    1단계 · 산책
+                </span>
+            </div>
+            <div class="p-6">
+                <div class="flex justify-between items-start mb-2">
+                    <h3 id="modal-title" class="text-xl font-bold text-slate-800">장소명</h3>
+                    <span id="modal-theme" class="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-1 rounded">테마</span>
+                </div>
+                <p id="modal-desc" class="text-xs sm:text-sm text-slate-600 mb-4 leading-relaxed">장소 상세 설명이 들어갑니다.</p>
+                
+                <div class="bg-amber-50/70 border border-amber-200/60 rounded-xl p-3.5 mb-5">
+                    <div class="text-xs font-bold text-amber-800 mb-1 flex items-center">
+                        <i class="fa-solid fa-lightbulb text-amber-500 mr-1.5"></i> 혼자 가기 꿀팁
+                    </div>
+                    <p id="modal-tip" class="text-xs text-amber-900 leading-relaxed">꿀팁 내용</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 text-xs text-slate-500 mb-6">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-regular fa-clock text-slate-400"></i>
+                        <span>소요시간: <strong id="modal-time" class="text-slate-700">60분</strong></span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-map-pin text-slate-400"></i>
+                        <span class="truncate" id="modal-addr">주소 정보</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <a id="modal-map-kakao" href="#" target="_blank" class="flex-1 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold rounded-xl text-xs text-center transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-map"></i> 카카오맵 검색
+                    </a>
+                    <a id="modal-map-google" href="#" target="_blank" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs text-center transition flex items-center justify-center gap-1.5">
+                        <i class="fa-brands fa-google"></i> 구글지도 검색
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Random Roulette Modal -->
+    <div id="roulette-modal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-2xl relative">
+            <button onclick="closeModal('roulette-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            
+            <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center text-amber-500 mx-auto mb-4 text-2xl shadow-inner">
+                <i id="roulette-icon" class="fa-solid fa-dice-five"></i>
+            </div>
+            
+            <h3 class="text-xl font-bold text-slate-800 mb-1">랜덤 코스 뽑기</h3>
+            <p class="text-xs text-slate-500 mb-6">어디로 떠날지 운명에 맡겨보세요!</p>
+
+            <div id="roulette-result-box" class="bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-6 min-h-[140px] flex flex-col items-center justify-center">
+                <p class="text-xs text-slate-400">버튼을 누르면 무작위 지역과 테마가 선택됩니다.</p>
+            </div>
+
+            <div class="flex gap-3">
+                <button id="roulette-spin-btn" onclick="spinRoulette()" class="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-sm shadow-md transition">
+                    <i class="fa-solid fa-rotate text-xs mr-1"></i> 코스 돌리기
+                </button>
+                <button id="roulette-apply-btn" onclick="applyRouletteResult()" disabled class="flex-1 py-3 bg-slate-200 text-slate-400 font-bold rounded-xl text-sm cursor-not-allowed transition">
+                    이 코스로 결정!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Saved Courses Modal -->
+    <div id="saved-modal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[85vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center">
+                    <i class="fa-solid fa-bookmark text-sage-500 mr-2"></i> 저장한 코스 목록
+                </h3>
+                <button onclick="closeModal('saved-modal')" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div id="saved-list-container" class="overflow-y-auto flex-grow space-y-3 pr-1 mb-4">
+                <!-- Saved items injected here -->
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 text-right">
+                <button onclick="closeModal('saved-modal')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition">
+                    닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- JavaScript Data and Logic -->
+    <script>
+        // Regional Data (Seoul & Gyeonggi Focused)
+        const REGION_DATA = {
+            "서울특별시": {
+                "종로구": ["삼청동", "가회동", "혜화동", "익선동", "서촌(통인동)"],
+                "마포구": ["연남동", "망원동", "서교동", "상수동", "합정동"],
+                "성동구": ["성수동1가", "성수동2가", "옥수동", "금호동"],
+                "강남구": ["신사동", "압구정동", "청담동", "삼성동"],
+                "용산구": ["이태원동", "한남동", "후암동", "용산동"]
+            },
+            "경기도": {
+                "수원시 팔달구": ["행궁동", "남수동", "화서동", "인계동"],
+                "수원시 영통구": ["광교동", "망포동", "영통동"],
+                "성남시 분당구": ["정자동", "백현동", "삼평동(판교)", "서현동"],
+                "고양시 일산동구": ["정발산동", "백석동", "장항동", "마두동"],
+                "용인시 수지구": ["고기동", "죽전동", "풍덕천동"]
+            }
+        };
+
+        // Specific Hardcoded High-Quality Courses
+        const SPECIFIC_COURSES = {
+            "삼청동": {
+                walk: { name: "삼청동 돌담길 & 감고당길", time: "50분", img: "https://images.unsplash.com/photo-1538485399081-7191377e8241?auto=format&fit=crop&w=600&q=80", desc: "한옥 분위기를 한껏 느끼며 조용히 골목을 걸을 수 있는 산책길입니다.", tip: "평일 오전에 방문하면 고즈넉한 풍경을 혼자 독차지할 수 있습니다." },
+                food: { name: "안국 도마 유기농 솥밥", time: "60분", img: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80", desc: "정갈한 1인 상차림으로 눈치 보지 않고 깔끔한 한식을 즐깁니다.", tip: "창가 바 테이블이 마련되어 1인 방문객이 부담 없습니다." },
+                cafe: { name: "어니언 안국", time: "60분", img: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=600&q=80", desc: "툇마루에 앉아 책을 읽으며 여유로운 커피 타임을 보냅니다.", tip: "좌식 툇마루 자리에 앉아 마당을 바라보기 좋은 명당입니다." },
+                activity: {
+                    "체험": { name: "전통 매듭 공예 클래스", time: "90분", img: "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?auto=format&fit=crop&w=600&q=80", desc: "한옥 안에서 혼자 조용히 집중할 수 있는 수공예 체험입니다.", tip: "현장 방문으로도 간단한 원데이 클래스 참여가 가능합니다." },
+                    "문화": { name: "국립현대미술관 서울관", time: "90분", img: "https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=600&q=80", desc: "탁 트인 공간에서 현대 미술 작가들의 전시를 관람합니다.", tip: "수, 토 저녁 야간 개장 시간은 비교적 한적합니다." },
+                    "액티비티": { name: "인왕산 자락길 트레킹", time: "80분", img: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=600&q=80", desc: "혼자서 가볍게 걷기 좋은 경치 뛰어난 트레킹 코스입니다.", tip: "수성동 계곡 입구부터 전망대까지 다녀오기 적합합니다." },
+                    "힐링": { name: "설화수 티하우스 족욕", time: "60분", img: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80", desc: "정원에서 한방 차와 함께 피로를 푸는 힐링 공간입니다.", tip: "조용히 정원을 바라보는 바 좌석을 요청해 보세요." }
+                }
+            },
+            "연남동": {
+                walk: { name: "경의선 숲길 (연트럴파크)", time: "45분", img: "https://images.unsplash.com/photo-1519331379826-f10be5486c6f?auto=format&fit=crop&w=600&q=80", desc: "도심 속 숲길을 따라 늘어선 아기자기한 숍들을 구경하며 걷습니다.", tip: "소품샵들은 보통 오후 1시 이후 오픈합니다." },
+                food: { name: "연남동 윤옥 (1인 라멘)", time: "45분", img: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=600&q=80", desc: "전석 바 테이블 형태의 완벽한 1인 혼밥 라멘집입니다.", tip: "키오스크 주문 후 칸막이 좌석에 앉아 편하게 즐기세요." },
+                cafe: { name: "어쩌다 산책 서점 카페", time: "60분", img: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=600&q=80", desc: "조용한 지하 공간에서 책을 읽으며 차를 마시는 독립서점입니다.", tip: "내부가 매우 조용해 에세이를 읽기 제격입니다." },
+                activity: {
+                    "체험": { name: "나만의 향수 조향 클래스", time: "70분", img: "https://images.unsplash.com/photo-1615397349754-cfa2066a298e?auto=format&fit=crop&w=600&q=80", desc: "내 이미지와 취향을 담은 맞춤 향수를 직접 만들어봅니다.", tip: "1인 전용 타임이 있어 타인 신경 쓰지 않고 집중 가능합니다." },
+                    "문화": { name: "연남장 복합문화공간 관람", time: "60분", img: "https://images.unsplash.com/photo-1508997449629-303059a039c0?auto=format&fit=crop&w=600&q=80", desc: "다양한 아티스트들의 전시와 팝업을 조용히 둘러봅니다.", tip: "오픈 시간에 맞춰가면 프라이빗한 관람이 가능합니다." },
+                    "액티비티": { name: "홍제천 따릉이 라이딩", time: "60분", img: "https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=600&q=80", desc: "연남동에서 홍제천을 따라 한강까지 달리는 자전거 코스입니다.", tip: "가좌역 인근에서 따릉이를 대여하면 편리합니다." },
+                    "힐링": { name: "연남 셀프 사진관", time: "30분", img: "https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&w=600&q=80", desc: "오늘 혼자 떠난 기록을 프라이빗한 부스에서 멋지게 남겨봅니다.", tip: "당당하고 솔직한 포즈를 미리 몇 개 생각하고 가세요." }
+                }
+            }
+        };
+
+        // Generate Dynamic Course for specific Dongs not hardcoded
+        function generateDynamicCourse(sido, sigungu, dong) {
+            if (SPECIFIC_COURSES[dong]) {
+                return applyAddresses(SPECIFIC_COURSES[dong], sido, sigungu, dong);
+            }
+            
+            // Dynamic Generic Content based on selected Dong
+            return {
+                walk: {
+                    name: `${dong} 로컬 감성 골목 산책`, time: "40분", img: "https://images.unsplash.com/photo-1519331379826-f10be5486c6f?auto=format&fit=crop&w=600&q=80",
+                    desc: `${dong} 특유의 분위기를 느끼며 동네 구석구석을 여유롭게 걸어보는 나홀로 산책입니다.`,
+                    tip: "음악을 들으며 발길 닿는 대로 골목을 탐험해 보세요.",
+                    address: `${sido} ${sigungu} ${dong}`
+                },
+                food: {
+                    name: `${dong} 1인 셰프 맛집 (혼밥)`, time: "50분", img: "https://images.unsplash.com/photo-1547496582-1770475f0f10?auto=format&fit=crop&w=600&q=80",
+                    desc: "혼자 방문해도 눈치 보이지 않고 편안하게 즐길 수 있는 ${dong}의 숨은 혼밥 맛집입니다.",
+                    tip: "바(Bar) 자리가 있는 식당을 방문하면 스마트폰을 보며 편하게 식사할 수 있습니다.",
+                    address: `${sido} ${sigungu} ${dong}`
+                },
+                cafe: {
+                    name: `${dong} 조용한 로스터리 카페`, time: "60분", img: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=600&q=80",
+                    desc: "커피 향기에 집중하며 나만의 사색과 독서를 즐길 수 있는 분위기 좋은 카페입니다.",
+                    tip: "구석 자리에 앉아 다이어리를 정리하며 하루를 마무리하기 좋습니다.",
+                    address: `${sido} ${sigungu} ${dong}`
+                },
+                activity: {
+                    "체험": { name: `${dong} 원데이 공방 체험`, time: "90분", img: "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?auto=format&fit=crop&w=600&q=80", desc: `손으로 직접 무언가를 만들며 힐링하는 ${dong}의 매력적인 소규모 클래스입니다.`, tip: "혼자 클래스에 참여하면 강사님과 더 깊은 피드백을 주고받을 수 있습니다.", address: `${sido} ${sigungu} ${dong}` },
+                    "문화": { name: `${dong} 독립서점 & 복합문화공간`, time: "60분", img: "https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=600&q=80", desc: `대형 공간에서 느낄 수 없는 ${dong}만의 큐레이션과 예술적 감각을 느껴봅니다.`, tip: "천천히 공간의 분위기를 음미하며 책이나 소품을 하나 구매해 보세요.", address: `${sido} ${sigungu} ${dong}` },
+                    "액티비티": { name: `${dong} 인근 공원 따릉이/조깅`, time: "60분", img: "https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=600&q=80", desc: "몸을 움직이며 일상의 스트레스를 날려버리는 상쾌한 혼자만의 운동 시간입니다.", tip: "편안한 복장과 운동화를 챙기고 가벼운 마음으로 나서는 것을 추천합니다.", address: `${sido} ${sigungu} ${dong}` },
+                    "힐링": { name: `${dong} 힐링 테라피 스파`, time: "90분", img: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80", desc: "따뜻한 공간에서 몸과 마음을 릴렉스하며 온전한 쉼을 경험합니다.", tip: "예약을 통해 프라이빗한 1인실을 이용하면 만족도가 더욱 높습니다.", address: `${sido} ${sigungu} ${dong}` }
+                }
+            };
+        }
+
+        // Apply dynamic addresses to specific courses
+        function applyAddresses(course, sido, sigungu, dong) {
+            const result = JSON.parse(JSON.stringify(course));
+            const fullAddr = `${sido} ${sigungu} ${dong}`;
+            result.walk.address = fullAddr;
+            result.food.address = fullAddr;
+            result.cafe.address = fullAddr;
+            Object.keys(result.activity).forEach(key => {
+                result.activity[key].address = fullAddr;
+            });
+            return result;
+        }
+
+        // Application State
+        let currentTheme = "전체";
+        let savedCourses = JSON.parse(localStorage.getItem('solo_saved_courses') || '[]');
+
+        // Initialize App Dropdowns
+        window.addEventListener('DOMContentLoaded', () => {
+            initSelectors();
+            updateSavedCount();
+            filterCourses();
+        });
+
+        function initSelectors() {
+            const sidoSelect = document.getElementById('sido-select');
+            sidoSelect.innerHTML = Object.keys(REGION_DATA).map(sido => `<option value="${sido}">${sido}</option>`).join('');
+            updateSigungu();
+        }
+
+        function updateSigungu() {
+            const sido = document.getElementById('sido-select').value;
+            const sigunguSelect = document.getElementById('sigungu-select');
+            const sigungus = Object.keys(REGION_DATA[sido]);
+            sigunguSelect.innerHTML = sigungus.map(sg => `<option value="${sg}">${sg}</option>`).join('');
+            updateDong();
+        }
+
+        function updateDong() {
+            const sido = document.getElementById('sido-select').value;
+            const sigungu = document.getElementById('sigungu-select').value;
+            const dongSelect = document.getElementById('dong-select');
+            const dongs = REGION_DATA[sido][sigungu];
+            dongSelect.innerHTML = dongs.map(d => `<option value="${d}">${d}</option>`).join('');
+            filterCourses();
+        }
+
+        // Set Theme Filter
+        function setTheme(theme) {
+            currentTheme = (currentTheme === theme) ? "전체" : theme;
+
+            // Update Button Styling (Tailwind Classes)
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                if (btn.dataset.theme === currentTheme) {
+                    btn.classList.add('bg-sage-500', 'text-white', 'border-sage-500');
+                    btn.classList.remove('border-slate-200', 'text-slate-600', 'hover:bg-slate-50');
+                } else {
+                    btn.classList.remove('bg-sage-500', 'text-white', 'border-sage-500');
+                    btn.classList.add('border-slate-200', 'text-slate-600', 'hover:bg-slate-50');
+                }
+            });
+
+            const badge = document.getElementById('current-badge');
+            badge.innerText = currentTheme === "전체" ? "전체 테마 보기" : `${currentTheme} 중심 코스`;
+
+            filterCourses();
+        }
+
+        // Render Courses based on Selectors
+        function filterCourses() {
+            const sido = document.getElementById('sido-select').value;
+            const sigungu = document.getElementById('sigungu-select').value;
+            const dong = document.getElementById('dong-select').value;
+            
+            document.getElementById('course-title-display').innerText = `${dong} 나홀로 추천 코스`;
+
+            const areaData = generateDynamicCourse(sido, sigungu, dong);
+            const activityItem = getSelectedActivity(areaData, currentTheme);
+
+            const steps = [
+                { step: "1단계", cat: "산책/탐방", icon: "fa-person-walking-luggage", color: "text-emerald-500", bg: "bg-emerald-50", item: areaData.walk },
+                { step: "2단계", cat: "혼밥 맛집", icon: "fa-utensils", color: "text-amber-500", bg: "bg-amber-50", item: areaData.food },
+                { step: "3단계", cat: `맞춤 컨텐츠 (${activityItem.theme})`, icon: "fa-icons", color: "text-indigo-500", bg: "bg-indigo-50", item: activityItem },
+                { step: "4단계", cat: "혼카페/디저트", icon: "fa-mug-hot", color: "text-rose-500", bg: "bg-rose-50", item: areaData.cafe }
+            ];
+
+            const container = document.getElementById('course-container');
+            container.innerHTML = "";
+
+            steps.forEach((s) => {
+                const card = document.createElement('div');
+                card.className = "relative flex items-start space-x-4 sm:space-x-6 card-hover bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm transition-all";
+                const itemJson = JSON.stringify(s.item).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+
+                card.innerHTML = `
+                    <div class="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-2xl ${s.bg} ${s.color} flex items-center justify-center font-bold text-lg shadow-sm border border-slate-100 z-10">
+                        <i class="fa-solid ${s.icon}"></i>
+                    </div>
+                    
+                    <div class="flex-grow min-w-0">
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                            <span class="text-[11px] sm:text-xs font-bold ${s.color} uppercase tracking-wider">
+                                ${s.step} · ${s.cat}
+                            </span>
+                            <span class="text-[10px] sm:text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
+                                <i class="fa-regular fa-clock mr-1"></i>${s.item.time}
+                            </span>
+                        </div>
+
+                        <h4 class="text-base sm:text-lg font-bold text-slate-800 mb-1 truncate">${s.item.name}</h4>
+                        <p class="text-xs sm:text-sm text-slate-500 line-clamp-2 mb-3 leading-relaxed">${s.item.desc}</p>
+                        
+                        <div class="flex items-center justify-between pt-2 border-t border-slate-50 text-xs">
+                            <span class="text-slate-400 truncate max-w-[180px] sm:max-w-xs">
+                                <i class="fa-solid fa-location-dot text-slate-300 mr-1"></i>${s.item.address}
+                            </span>
+                            <button onclick='openDetailModal("${s.step}", "${s.cat}", ${itemJson})' class="text-sage-600 font-semibold hover:text-sage-700 hover:underline flex items-center space-x-1 whitespace-nowrap">
+                                <span>상세보기 & 팁</span>
+                                <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function getSelectedActivity(areaData, theme) {
+            if (theme !== "전체" && areaData.activity[theme]) {
+                return { ...areaData.activity[theme], theme: theme };
+            }
+            const defaultTheme = Object.keys(areaData.activity)[0];
+            return { ...areaData.activity[defaultTheme], theme: defaultTheme };
+        }
+
+        function resetFilters() {
+            document.getElementById('sido-select').selectedIndex = 0;
+            updateSigungu();
+            setTheme('전체');
+        }
+
+        // UI Modals and Utilities
+        function openDetailModal(step, cat, item) {
+            document.getElementById('modal-step-badge').innerText = `${step} · ${cat}`;
+            document.getElementById('modal-title').innerText = item.name;
+            document.getElementById('modal-theme').innerText = item.theme || "추천 스팟";
+            document.getElementById('modal-desc').innerText = item.desc;
+            document.getElementById('modal-tip').innerText = item.tip;
+            document.getElementById('modal-time').innerText = item.time;
+            document.getElementById('modal-addr').innerText = item.address;
+            document.getElementById('modal-img').src = item.img;
+
+            const encodedQuery = encodeURIComponent(`${item.address} ${item.name.replace(/\s*\(.*\)\s*/g, '')}`); // Remove parentheses for search
+            document.getElementById('modal-map-kakao').href = `https://map.kakao.com/?q=${encodedQuery}`;
+            document.getElementById('modal-map-google').href = `https://www.google.com/maps/search/?api=1&query=${encodedQuery}`;
+
+            document.getElementById('detail-modal').classList.remove('hidden');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = message;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        function saveCurrentCourse() {
+            const dong = document.getElementById('dong-select').value;
+            const sido = document.getElementById('sido-select').value;
+            const sigungu = document.getElementById('sigungu-select').value;
+            const areaData = generateDynamicCourse(sido, sigungu, dong);
+            const activityItem = getSelectedActivity(areaData, currentTheme);
+
+            const courseObj = {
+                id: Date.now(),
+                title: `${dong} (${currentTheme === '전체' ? '기본' : currentTheme}) 코스`,
+                items: [areaData.walk.name, areaData.food.name, activityItem.name, areaData.cafe.name],
+                date: new Date().toLocaleDateString('ko-KR')
+            };
+
+            savedCourses.unshift(courseObj);
+            localStorage.setItem('solo_saved_courses', JSON.stringify(savedCourses));
+            updateSavedCount();
+            showToast("코스가 나만의 저장 리스트에 추가되었습니다!");
+        }
+
+        function updateSavedCount() {
+            document.getElementById('saved-count').innerText = savedCourses.length;
+        }
+
+        function openSavedModal() {
+            const container = document.getElementById('saved-list-container');
+            container.innerHTML = "";
+            if (savedCourses.length === 0) {
+                container.innerHTML = `<div class="text-center py-10 text-slate-400"><i class="fa-regular fa-bookmark text-3xl mb-2"></i><p class="text-xs">저장된 코스가 없습니다.</p></div>`;
+            } else {
+                savedCourses.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = "bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex justify-between items-center text-xs";
+                    card.innerHTML = `
+                        <div>
+                            <div class="flex items-center space-x-2 mb-1">
+                                <span class="font-bold text-slate-800">${item.title}</span>
+                                <span class="text-[10px] text-slate-400">${item.date}</span>
+                            </div>
+                            <p class="text-slate-500 truncate max-w-xs">${item.items.join(" → ")}</p>
+                        </div>
+                        <button onclick="deleteSavedCourse(${item.id})" class="text-slate-400 hover:text-rose-500 p-1.5 transition"><i class="fa-solid fa-trash-can"></i></button>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+            document.getElementById('saved-modal').classList.remove('hidden');
+        }
+
+        function deleteSavedCourse(id) {
+            savedCourses = savedCourses.filter(item => item.id !== id);
+            localStorage.setItem('solo_saved_courses', JSON.stringify(savedCourses));
+            updateSavedCount();
+            openSavedModal();
+            showToast("저장된 코스가 삭제되었습니다.");
+        }
+
+        function shareCourse() {
+            const dong = document.getElementById('dong-select').value;
+            const sido = document.getElementById('sido-select').value;
+            const sigungu = document.getElementById('sigungu-select').value;
+            const areaData = generateDynamicCourse(sido, sigungu, dong);
+            const act = getSelectedActivity(areaData, currentTheme);
+            
+            const shareText = `[나홀로 코스] ${dong} 추천 코스\n- 산책: ${areaData.walk.name}\n- 혼밥: ${areaData.food.name}\n- 체험: ${act.name}\n- 카페: ${areaData.cafe.name}`;
+            
+            const dummy = document.createElement("textarea");
+            document.body.appendChild(dummy);
+            dummy.value = shareText;
+            dummy.select();
+            document.execCommand("copy");
+            document.body.removeChild(dummy);
+            showToast("코스 정보가 클립보드에 복사되었습니다!");
+        }
+
+        // Roulette Features
+        let rouletteLoc = {};
+        let rouletteResultTheme = "";
+
+        function openRouletteModal() {
+            document.getElementById('roulette-result-box').innerHTML = `<p class="text-xs text-slate-400">버튼을 누르면 무작위 지역과 테마가 선택됩니다.</p>`;
+            const applyBtn = document.getElementById('roulette-apply-btn');
+            applyBtn.disabled = true;
+            applyBtn.className = "flex-1 py-3 bg-slate-200 text-slate-400 font-bold rounded-xl text-sm cursor-not-allowed transition";
+            document.getElementById('roulette-modal').classList.remove('hidden');
+        }
+
+        function spinRoulette() {
+            const icon = document.getElementById('roulette-icon');
+            const resultBox = document.getElementById('roulette-result-box');
+            const spinBtn = document.getElementById('roulette-spin-btn');
+            const applyBtn = document.getElementById('roulette-apply-btn');
+
+            spinBtn.disabled = true;
+            icon.classList.add('spinning');
+            resultBox.innerHTML = `<p class="text-xs font-semibold text-amber-600 animate-pulse">운명의 코스를 뽑는 중...</p>`;
+
+            setTimeout(() => {
+                const sidos = Object.keys(REGION_DATA);
+                const rSido = sidos[Math.floor(Math.random() * sidos.length)];
+                const sigungus = Object.keys(REGION_DATA[rSido]);
+                const rSigungu = sigungus[Math.floor(Math.random() * sigungus.length)];
+                const dongs = REGION_DATA[rSido][rSigungu];
+                const rDong = dongs[Math.floor(Math.random() * dongs.length)];
+                
+                const themes = ["체험", "문화", "액티비티", "힐링"];
+                rouletteResultTheme = themes[Math.floor(Math.random() * themes.length)];
+                rouletteLoc = { sido: rSido, sigungu: rSigungu, dong: rDong };
+
+                icon.classList.remove('spinning');
+                spinBtn.disabled = false;
+
+                resultBox.innerHTML = `
+                    <div class="space-y-1">
+                        <span class="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded">추천 당첨!</span>
+                        <h4 class="text-lg font-bold text-slate-800">${rSigungu} ${rDong}</h4>
+                        <p class="text-xs text-sage-600 font-medium">[${rouletteResultTheme} 중심 코스]</p>
+                    </div>
+                `;
+
+                applyBtn.disabled = false;
+                applyBtn.className = "flex-1 py-3 bg-sage-500 hover:bg-sage-600 text-white font-bold rounded-xl text-sm shadow-md transition";
+            }, 1200);
+        }
+
+        function applyRouletteResult() {
+            if (!rouletteLoc.dong) return;
+
+            document.getElementById('sido-select').value = rouletteLoc.sido;
+            updateSigungu();
+            document.getElementById('sigungu-select').value = rouletteLoc.sigungu;
+            updateDong();
+            document.getElementById('dong-select').value = rouletteLoc.dong;
+            
+            setTheme(rouletteResultTheme);
+            closeModal('roulette-modal');
+            showToast(`${rouletteLoc.dong} [${rouletteResultTheme}] 코스가 설정되었습니다!`);
+        }
+    </script>
+</body>
+</html>
