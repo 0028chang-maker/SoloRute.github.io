@@ -115,6 +115,29 @@
             max-width: 240px;
             font-family: 'Noto Sans KR', sans-serif;
         }
+        .kakao-station-badge {
+            background: #1e293b;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 9999px;
+            border: 2px solid #ffffff;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.25);
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        .kakao-user-marker {
+            width: 18px;
+            height: 18px;
+            border-radius: 9999px;
+            background: #2563eb;
+            border: 3px solid #ffffff;
+            box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.25), 0 3px 8px rgba(15, 23, 42, 0.3);
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col justify-between antialiased selection:bg-sage-100 selection:text-sage-700">
@@ -235,7 +258,7 @@
         </section>
 
         <!-- Course Display Header -->
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b border-slate-200 gap-3">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 pb-4 border-b border-slate-200 gap-3">
             <div>
                 <span id="current-badge" class="text-xs font-bold text-sage-600 bg-sage-50 px-2.5 py-1 rounded-md border border-sage-100">
                     전체 테마 보기
@@ -256,6 +279,52 @@
                 </button>
             </div>
         </div>
+
+        <!-- Route Summary & Smart Route Controls (Ideas 1, 2, 5, 10) -->
+        <section id="route-summary-bar" class="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex flex-wrap items-center gap-3 sm:gap-5 text-xs">
+                <div class="flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-xl bg-sage-50 text-sage-600 flex items-center justify-center">
+                        <i class="fa-regular fa-clock"></i>
+                    </span>
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-medium">총 체류 예상</p>
+                        <p id="summary-stay-time" class="font-bold text-slate-800">계산 중...</p>
+                    </div>
+                </div>
+                <div class="h-6 w-px bg-slate-100 hidden sm:block"></div>
+                <div class="flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                        <i class="fa-solid fa-shoe-prints"></i>
+                    </span>
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-medium">총 도보 이동</p>
+                        <p id="summary-walk-distance" class="font-bold text-slate-800">지도 연동 시 계산</p>
+                    </div>
+                </div>
+                <div class="h-6 w-px bg-slate-100 hidden sm:block"></div>
+                <div class="flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
+                        <i class="fa-solid fa-train-subway"></i>
+                    </span>
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-medium">출발 · 귀가 기준역</p>
+                        <p id="summary-stations" class="font-bold text-slate-800">인근 역 탐색 대기</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+                <button id="btn-gps-start" onclick="toggleGpsStart()" class="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/70 rounded-xl font-semibold transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-location-arrow"></i>
+                    <span>내 위치에서 출발</span>
+                </button>
+                <button id="btn-optimize-route" onclick="toggleOptimizeRoute()" class="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/70 rounded-xl font-semibold transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i>
+                    <span>최적 동선 정렬</span>
+                </button>
+            </div>
+        </section>
 
         <!-- Course Timeline & Interactive Kakao Map -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mb-12">
@@ -327,12 +396,14 @@
                 <!-- Map Step Legend -->
                 <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
                     <div class="flex flex-wrap items-center gap-2.5">
-                        <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-emerald-500 text-white text-[10px] font-bold inline-flex items-center justify-center">1</span>산책</span>
-                        <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold inline-flex items-center justify-center">2</span>혼밥</span>
-                        <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-indigo-500 text-white text-[10px] font-bold inline-flex items-center justify-center">3</span>컨텐츠</span>
-                        <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-bold inline-flex items-center justify-center">4</span>카페</span>
+                        <span class="inline-flex items-center gap-1"><span class="w-3.5 h-3.5 rounded-full bg-emerald-500 inline-block"></span>산책</span>
+                        <span class="inline-flex items-center gap-1"><span class="w-3.5 h-3.5 rounded-full bg-amber-500 inline-block"></span>혼밥</span>
+                        <span class="inline-flex items-center gap-1"><span class="w-3.5 h-3.5 rounded-full bg-indigo-500 inline-block"></span>컨텐츠</span>
+                        <span class="inline-flex items-center gap-1"><span class="w-3.5 h-3.5 rounded-full bg-rose-500 inline-block"></span>카페</span>
+                        <span class="inline-flex items-center gap-1"><span class="w-3.5 h-3.5 rounded-full bg-slate-800 text-white text-[9px] inline-flex items-center justify-center"><i class="fa-solid fa-train-subway"></i></span>역</span>
+                        <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-blue-600 inline-block"></span>내 위치</span>
                     </div>
-                    <span class="text-[10px] text-slate-400">마커 클릭 시 장소 정보 확인</span>
+                    <span class="text-[10px] text-slate-400">마커 클릭 시 장소 정보</span>
                 </div>
             </section>
 
@@ -341,7 +412,7 @@
                 <!-- Vertical Line -->
                 <div class="timeline-line"></div>
 
-                <div id="course-container" class="space-y-6 relative z-10">
+                <div id="course-container" class="space-y-3 relative z-10">
                     <!-- Step Cards injected dynamically -->
                 </div>
             </div>
@@ -718,6 +789,9 @@
         // Application State
         let currentTheme = "전체";
         let currentSteps = [];
+        let defaultStepsBackup = [];
+        let defaultMetaBackup = [];
+        let isRouteOptimized = false;
         let savedCourses = JSON.parse(localStorage.getItem('solo_saved_courses') || '[]');
 
         // Kakao Map State
@@ -727,10 +801,14 @@
         let kakaoSdkLoading = false;
         let mapOverlays = [];
         let mapPolyline = null;
+        let originPolyline = null;
         let activeInfoOverlay = null;
         let currentBounds = null;
         let mapRenderToken = 0;
         let resolvedSpotMeta = []; // Stores { lat, lng, placeName, roadAddress, placeUrl } per step
+        let startStationMeta = null; // Nearest subway station to first step
+        let endStationMeta = null;   // Nearest subway station to last step
+        let userOrigin = null;       // { lat, lng, label: "내 위치" } when GPS active
 
         const STEP_MARKER_COLORS = ["#10b981", "#f59e0b", "#6366f1", "#f43f5e"];
 
@@ -950,30 +1028,127 @@
             const areaData = generateDynamicCourse(sido, sigungu, dong);
             const activityItem = getSelectedActivity(areaData, currentTheme);
 
-            currentSteps = [
-                { step: "1단계", cat: "산책/탐방", icon: "fa-person-walking-luggage", color: "text-emerald-500", bg: "bg-emerald-50", item: areaData.walk },
-                { step: "2단계", cat: "혼밥 맛집", icon: "fa-utensils", color: "text-amber-500", bg: "bg-amber-50", item: areaData.food },
-                { step: "3단계", cat: `맞춤 컨텐츠 (${activityItem.theme})`, icon: "fa-icons", color: "text-indigo-500", bg: "bg-indigo-50", item: activityItem },
-                { step: "4단계", cat: "혼카페/디저트", icon: "fa-mug-hot", color: "text-rose-500", bg: "bg-rose-50", item: areaData.cafe }
-            ];
+            isRouteOptimized = false;
+            updateOptimizeButtonUI();
 
+            currentSteps = [
+                { colorIdx: 0, step: "1단계", cat: "산책/탐방", icon: "fa-person-walking-luggage", color: "text-emerald-500", bg: "bg-emerald-50", item: areaData.walk },
+                { colorIdx: 1, step: "2단계", cat: "혼밥 맛집", icon: "fa-utensils", color: "text-amber-500", bg: "bg-amber-50", item: areaData.food },
+                { colorIdx: 2, step: "3단계", cat: `맞춤 컨텐츠 (${activityItem.theme})`, icon: "fa-icons", color: "text-indigo-500", bg: "bg-indigo-50", item: activityItem },
+                { colorIdx: 3, step: "4단계", cat: "혼카페/디저트", icon: "fa-mug-hot", color: "text-rose-500", bg: "bg-rose-50", item: areaData.cafe }
+            ];
+            defaultStepsBackup = currentSteps.slice();
+            resolvedSpotMeta = new Array(currentSteps.length).fill(null);
+            defaultMetaBackup = [];
+            startStationMeta = null;
+            endStationMeta = null;
+
+            renderTimelineCards();
+            updateRouteSummary();
+            renderCourseOnMap();
+        }
+
+        // Haversine distance + urban walking estimate (Ideas 1 & 10)
+        function calcWalkMetrics(lat1, lng1, lat2, lng2) {
+            const R = 6371000;
+            const toRad = (deg) => deg * Math.PI / 180;
+            const dLat = toRad(lat2 - lat1);
+            const dLng = toRad(lng2 - lng1);
+            const a = Math.sin(dLat / 2) ** 2 +
+                      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+            const straightMeters = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const estMeters = Math.round(straightMeters * 1.25);
+            const walkMins = Math.max(1, Math.round(estMeters / 67));
+            return { meters: estMeters, minutes: walkMins };
+        }
+
+        function formatDistance(meters) {
+            if (meters >= 1000) {
+                return `${(meters / 1000).toFixed(1)}km`;
+            }
+            return `${meters}m`;
+        }
+
+        function parseStayMinutes(timeStr) {
+            const str = String(timeStr || "");
+            let total = 0;
+            const hrMatch = str.match(/(\d+)\s*시간/);
+            const minMatch = str.match(/(\d+)\s*분/);
+            if (hrMatch) total += parseInt(hrMatch[1], 10) * 60;
+            if (minMatch) total += parseInt(minMatch[1], 10);
+            return total || 60;
+        }
+
+        function formatDuration(totalMinutes) {
+            const h = Math.floor(totalMinutes / 60);
+            const m = totalMinutes % 60;
+            if (h > 0 && m > 0) return `${h}시간 ${m}분`;
+            if (h > 0) return `${h}시간`;
+            return `${m}분`;
+        }
+
+        function buildKakaoBetweenLink(fromName, fromLat, fromLng, toName, toLat, toLng) {
+            return `https://map.kakao.com/link/from/${encodeURIComponent(fromName)},${fromLat},${fromLng}/to/${encodeURIComponent(toName)},${toLat},${toLng}`;
+        }
+
+        function buildSegmentConnectorHtml(label, metrics, fromToUrl, iconClass, badgeClass) {
+            const distText = metrics ? `도보 약 ${metrics.minutes}분 (${formatDistance(metrics.meters)})` : "";
+            return `
+                <div class="relative z-10 flex items-center justify-between gap-2 ml-12 sm:ml-16 bg-slate-50/90 border border-slate-200/70 rounded-xl px-3 py-2 text-[11px]">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="px-2 py-0.5 rounded-md font-bold ${badgeClass} whitespace-nowrap">
+                            <i class="fa-solid ${iconClass} mr-1"></i>${escapeHtml(label)}
+                        </span>
+                        <span class="text-slate-600 font-medium truncate">${escapeHtml(distText)}</span>
+                    </div>
+                    <a href="${fromToUrl}" target="_blank" rel="noopener noreferrer" class="text-sage-600 hover:text-sage-700 font-bold whitespace-nowrap flex items-center gap-1 hover:underline">
+                        <i class="fa-solid fa-route text-[10px]"></i>
+                        <span>구간 길찾기</span>
+                    </a>
+                </div>
+            `;
+        }
+
+        function renderTimelineCards() {
             const container = document.getElementById('course-container');
             container.innerHTML = "";
 
+            // Origin Connector (GPS or Start Subway Station -> Step 1)
+            const firstMeta = resolvedSpotMeta[0];
+            if (firstMeta) {
+                const firstLabel = firstMeta.placeName || currentSteps[0].item.name;
+                if (userOrigin) {
+                    const m = calcWalkMetrics(userOrigin.lat, userOrigin.lng, firstMeta.lat, firstMeta.lng);
+                    const url = buildKakaoBetweenLink(userOrigin.label, userOrigin.lat, userOrigin.lng, firstLabel, firstMeta.lat, firstMeta.lng);
+                    container.insertAdjacentHTML('beforeend', buildSegmentConnectorHtml("내 위치 출발", m, url, "fa-location-arrow", "bg-blue-100 text-blue-700"));
+                } else if (startStationMeta) {
+                    const m = calcWalkMetrics(startStationMeta.lat, startStationMeta.lng, firstMeta.lat, firstMeta.lng);
+                    const url = buildKakaoBetweenLink(startStationMeta.name, startStationMeta.lat, startStationMeta.lng, firstLabel, firstMeta.lat, firstMeta.lng);
+                    container.insertAdjacentHTML('beforeend', buildSegmentConnectorHtml(`${startStationMeta.name} 출발`, m, url, "fa-train-subway", "bg-slate-200 text-slate-700"));
+                }
+            }
+
             currentSteps.forEach((s, idx) => {
+                const meta = resolvedSpotMeta[idx];
+                const addrDisplay = (meta && meta.roadAddress)
+                    ? (meta.placeName && meta.placeName !== s.item.name ? `${meta.placeName} · ${meta.roadAddress}` : meta.roadAddress)
+                    : s.item.address;
+                const addrColorClass = (meta && meta.roadAddress) ? "text-sage-500" : "text-slate-300";
+
                 const card = document.createElement('div');
                 card.id = `course-card-${idx}`;
                 card.className = "relative flex items-start space-x-4 sm:space-x-6 card-hover bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm transition-all";
 
                 card.innerHTML = `
-                    <div class="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-2xl ${s.bg} ${s.color} flex items-center justify-center font-bold text-lg shadow-sm border border-slate-100 z-10">
+                    <div class="relative flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-2xl ${s.bg} ${s.color} flex items-center justify-center font-bold text-lg shadow-sm border border-slate-100 z-10">
                         <i class="fa-solid ${s.icon}"></i>
+                        <span class="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full text-[10px] font-extrabold text-white flex items-center justify-center border-2 border-white shadow" style="background:${STEP_MARKER_COLORS[s.colorIdx]}">${idx + 1}</span>
                     </div>
                     
                     <div class="flex-grow min-w-0">
                         <div class="flex items-center justify-between gap-2 mb-1">
                             <span class="text-[11px] sm:text-xs font-bold ${s.color} uppercase tracking-wider">
-                                ${s.step} · ${s.cat}
+                                ${idx + 1}코스 · ${s.cat}
                             </span>
                             <span class="text-[10px] sm:text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
                                 <i class="fa-regular fa-clock mr-1"></i>${escapeHtml(s.item.time)}
@@ -984,8 +1159,8 @@
                         <p class="text-xs sm:text-sm text-slate-500 line-clamp-2 mb-3 leading-relaxed">${escapeHtml(s.item.desc)}</p>
                         
                         <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-50 text-xs">
-                            <span id="step-addr-${idx}" class="text-slate-400 truncate max-w-[160px] sm:max-w-[220px]">
-                                <i class="fa-solid fa-location-dot text-slate-300 mr-1"></i>${escapeHtml(s.item.address)}
+                            <span id="step-addr-${idx}" class="text-slate-400 truncate max-w-[160px] sm:max-w-[240px]">
+                                <i class="fa-solid fa-location-dot ${addrColorClass} mr-1"></i>${escapeHtml(addrDisplay)}
                             </span>
                             <div class="flex items-center gap-3 whitespace-nowrap">
                                 <button onclick="focusStepOnMap(${idx})" class="text-slate-500 hover:text-sage-600 font-medium flex items-center space-x-1 transition" title="지도에서 위치 보기">
@@ -1001,9 +1176,64 @@
                     </div>
                 `;
                 container.appendChild(card);
+
+                // Between-step connector (Ideas 1 & 4)
+                if (idx < currentSteps.length - 1) {
+                    const nextMeta = resolvedSpotMeta[idx + 1];
+                    if (meta && nextMeta) {
+                        const m = calcWalkMetrics(meta.lat, meta.lng, nextMeta.lat, nextMeta.lng);
+                        const fromLabel = meta.placeName || s.item.name;
+                        const toLabel = nextMeta.placeName || currentSteps[idx + 1].item.name;
+                        const url = buildKakaoBetweenLink(fromLabel, meta.lat, meta.lng, toLabel, nextMeta.lat, nextMeta.lng);
+                        container.insertAdjacentHTML('beforeend', buildSegmentConnectorHtml(`${idx + 1}→${idx + 2} 이동`, m, url, "fa-person-walking", "bg-emerald-100 text-emerald-700"));
+                    }
+                }
             });
 
-            renderCourseOnMap();
+            // Return Station Connector (Step 4 -> End Subway Station)
+            const lastIdx = currentSteps.length - 1;
+            const lastMeta = resolvedSpotMeta[lastIdx];
+            if (lastMeta && endStationMeta) {
+                const lastLabel = lastMeta.placeName || currentSteps[lastIdx].item.name;
+                const m = calcWalkMetrics(lastMeta.lat, lastMeta.lng, endStationMeta.lat, endStationMeta.lng);
+                const url = buildKakaoBetweenLink(lastLabel, lastMeta.lat, lastMeta.lng, endStationMeta.name, endStationMeta.lat, endStationMeta.lng);
+                container.insertAdjacentHTML('beforeend', buildSegmentConnectorHtml(`${endStationMeta.name} 귀가`, m, url, "fa-train-subway", "bg-slate-200 text-slate-700"));
+            }
+        }
+
+        function updateRouteSummary() {
+            const stayMins = currentSteps.reduce((acc, s) => acc + parseStayMinutes(s.item.time), 0);
+            document.getElementById('summary-stay-time').innerText = formatDuration(stayMins);
+
+            const validMeta = resolvedSpotMeta.every(Boolean);
+            if (validMeta && resolvedSpotMeta.length > 1) {
+                let totalMeters = 0;
+                let totalWalkMins = 0;
+                for (let i = 0; i < resolvedSpotMeta.length - 1; i++) {
+                    const m = calcWalkMetrics(
+                        resolvedSpotMeta[i].lat, resolvedSpotMeta[i].lng,
+                        resolvedSpotMeta[i + 1].lat, resolvedSpotMeta[i + 1].lng
+                    );
+                    totalMeters += m.meters;
+                    totalWalkMins += m.minutes;
+                }
+                document.getElementById('summary-walk-distance').innerText = `약 ${formatDistance(totalMeters)} · 도보 ${totalWalkMins}분`;
+            } else {
+                document.getElementById('summary-walk-distance').innerText = kakaoSdkReady ? "계산 중..." : "지도 연동 시 계산";
+            }
+
+            const stationEl = document.getElementById('summary-stations');
+            if (startStationMeta && endStationMeta) {
+                if (startStationMeta.name === endStationMeta.name) {
+                    stationEl.innerText = `${startStationMeta.name} 출발·귀가`;
+                } else {
+                    stationEl.innerText = `${startStationMeta.name} → ${endStationMeta.name}`;
+                }
+            } else if (startStationMeta) {
+                stationEl.innerText = `${startStationMeta.name} 인근`;
+            } else {
+                stationEl.innerText = kakaoSdkReady ? "인근 역 탐색 중..." : "지도 연동 시 탐색";
+            }
         }
 
         // Clear existing markers, polyline, info overlay
@@ -1014,6 +1244,10 @@
                 mapPolyline.setMap(null);
                 mapPolyline = null;
             }
+            if (originPolyline) {
+                originPolyline.setMap(null);
+                originPolyline = null;
+            }
             if (activeInfoOverlay) {
                 activeInfoOverlay.setMap(null);
                 activeInfoOverlay = null;
@@ -1021,7 +1255,30 @@
             currentBounds = null;
         }
 
-        // Resolve coordinates for each step using Kakao Places + Geocoder fallback
+        // Idea 5: Find nearest subway station (category 'SW8')
+        function findNearestSubway(lat, lng, places) {
+            return new Promise((resolve) => {
+                places.categorySearch('SW8', (data, status) => {
+                    if (status === window.kakao.maps.services.Status.OK && data.length > 0) {
+                        const st = data[0];
+                        resolve({
+                            name: st.place_name.replace(/\s*\d+호선.*$/g, '').trim(),
+                            fullName: st.place_name,
+                            lat: parseFloat(st.y),
+                            lng: parseFloat(st.x)
+                        });
+                    } else {
+                        resolve(null);
+                    }
+                }, {
+                    location: new window.kakao.maps.LatLng(lat, lng),
+                    radius: 2000,
+                    sort: window.kakao.maps.services.SortBy.DISTANCE
+                });
+            });
+        }
+
+        // Resolve coordinates with 2-stage radius anchor search (Idea 3) + Subway search (Idea 5)
         async function renderCourseOnMap() {
             if (!kakaoSdkReady || !kakaoMap || currentSteps.length === 0) return;
 
@@ -1034,98 +1291,166 @@
             const dong = document.getElementById('dong-select').value;
             const cleanDong = dong.replace(/\(.*\)/g, "").trim();
 
-            document.getElementById('map-status-text').innerText = `${dong} 코스 위치를 검색하는 중...`;
+            document.getElementById('map-status-text').innerText = `${dong} 반경 1km 내 동선을 탐색 중...`;
 
             const places = new window.kakao.maps.services.Places();
             const geocoder = new window.kakao.maps.services.Geocoder();
 
-            // Helper: search a single step via Places API, with fallback to preset coords or Dong Geocoder
-            const resolveStepLocation = (stepObj, idx) => {
-                return new Promise((resolve) => {
-                    const query = stepObj.item.mapQuery || `${sigungu} ${cleanDong}`;
-                    places.keywordSearch(query, (data, status) => {
-                        if (status === window.kakao.maps.services.Status.OK && data.length > 0) {
-                            const top = data[0];
-                            resolve({
-                                lat: parseFloat(top.y),
-                                lng: parseFloat(top.x),
-                                placeName: top.place_name,
-                                roadAddress: top.road_address_name || top.address_name,
-                                placeUrl: top.place_url
-                            });
-                            return;
-                        }
-                        if (stepObj.item.coords) {
-                            resolve({
-                                lat: stepObj.item.coords.lat,
-                                lng: stepObj.item.coords.lng,
-                                placeName: stepObj.item.name,
-                                roadAddress: stepObj.item.address,
-                                placeUrl: ""
-                            });
-                            return;
-                        }
-                        // Fallback: Geocode Dong center with slight visual offset so markers don't stack
-                        geocoder.addressSearch(`${sido} ${sigungu} ${cleanDong}`, (geoData, geoStatus) => {
-                            if (geoStatus === window.kakao.maps.services.Status.OK && geoData.length > 0) {
-                                const offsets = [
-                                    [0.0012, -0.0014],
-                                    [0.0005, 0.0012],
-                                    [-0.0011, 0.0008],
-                                    [-0.0006, -0.0012]
-                                ];
-                                const [dLat, dLng] = offsets[idx % offsets.length];
-                                resolve({
-                                    lat: parseFloat(geoData[0].y) + dLat,
-                                    lng: parseFloat(geoData[0].x) + dLng,
-                                    placeName: stepObj.item.name,
-                                    roadAddress: stepObj.item.address,
-                                    placeUrl: ""
-                                });
-                            } else {
-                                resolve(null);
-                            }
-                        });
-                    });
+            const geocodeDongCenter = () => new Promise((resolve) => {
+                geocoder.addressSearch(`${sido} ${sigungu} ${cleanDong}`, (geoData, geoStatus) => {
+                    if (geoStatus === window.kakao.maps.services.Status.OK && geoData.length > 0) {
+                        resolve({ lat: parseFloat(geoData[0].y), lng: parseFloat(geoData[0].x) });
+                    } else {
+                        resolve(null);
+                    }
                 });
+            });
+
+            const keywordSearchPromise = (query, options) => new Promise((resolve) => {
+                places.keywordSearch(query, (data, status) => {
+                    if (status === window.kakao.maps.services.Status.OK && data.length > 0) {
+                        resolve(data[0]);
+                    } else {
+                        resolve(null);
+                    }
+                }, options || {});
+            });
+
+            // Stage 1: Resolve anchor coordinate (Step 1 preset/search or Dong center)
+            const step1 = currentSteps[0];
+            let anchorCoords = step1.item.coords ? { ...step1.item.coords } : await geocodeDongCenter();
+            if (token !== mapRenderToken) return;
+
+            if (!step1.item.coords && anchorCoords) {
+                const anchorPlace = await keywordSearchPromise(step1.item.mapQuery || `${sigungu} ${cleanDong}`, {
+                    location: new window.kakao.maps.LatLng(anchorCoords.lat, anchorCoords.lng),
+                    radius: 1000,
+                    sort: window.kakao.maps.services.SortBy.ACCURACY
+                });
+                if (token !== mapRenderToken) return;
+                if (anchorPlace) {
+                    anchorCoords = { lat: parseFloat(anchorPlace.y), lng: parseFloat(anchorPlace.x) };
+                }
+            }
+
+            // Stage 2: Search all 4 steps within radius 1000m (fallback 2000m -> preset/dong center)
+            const resolveStepLocation = async (stepObj, idx) => {
+                const query = stepObj.item.mapQuery || `${sigungu} ${cleanDong}`;
+                let top = null;
+
+                if (anchorCoords) {
+                    const anchorLatLng = new window.kakao.maps.LatLng(anchorCoords.lat, anchorCoords.lng);
+                    top = await keywordSearchPromise(query, {
+                        location: anchorLatLng,
+                        radius: 1000,
+                        sort: window.kakao.maps.services.SortBy.ACCURACY
+                    });
+                    if (!top) {
+                        top = await keywordSearchPromise(query, {
+                            location: anchorLatLng,
+                            radius: 2000,
+                            sort: window.kakao.maps.services.SortBy.ACCURACY
+                        });
+                    }
+                } else {
+                    top = await keywordSearchPromise(query);
+                }
+
+                if (top) {
+                    return {
+                        lat: parseFloat(top.y),
+                        lng: parseFloat(top.x),
+                        placeName: top.place_name,
+                        roadAddress: top.road_address_name || top.address_name,
+                        placeUrl: top.place_url
+                    };
+                }
+                if (stepObj.item.coords) {
+                    return {
+                        lat: stepObj.item.coords.lat,
+                        lng: stepObj.item.coords.lng,
+                        placeName: stepObj.item.name,
+                        roadAddress: stepObj.item.address,
+                        placeUrl: ""
+                    };
+                }
+                if (anchorCoords) {
+                    const offsets = [
+                        [0.0012, -0.0014],
+                        [0.0005, 0.0012],
+                        [-0.0011, 0.0008],
+                        [-0.0006, -0.0012]
+                    ];
+                    const [dLat, dLng] = offsets[idx % offsets.length];
+                    return {
+                        lat: anchorCoords.lat + dLat,
+                        lng: anchorCoords.lng + dLng,
+                        placeName: stepObj.item.name,
+                        roadAddress: stepObj.item.address,
+                        placeUrl: ""
+                    };
+                }
+                return null;
             };
 
             const results = await Promise.all(currentSteps.map((s, idx) => resolveStepLocation(s, idx)));
-            if (token !== mapRenderToken) return; // Ignore stale async response
+            if (token !== mapRenderToken) return;
 
             resolvedSpotMeta = results;
+            defaultMetaBackup = results.slice();
+
+            await refreshStationsAndDraw(token);
+        }
+
+        async function refreshStationsAndDraw(expectedToken) {
+            if (!kakaoSdkReady || !kakaoMap) return;
+            const places = new window.kakao.maps.services.Places();
+            const firstMeta = resolvedSpotMeta[0];
+            const lastMeta = resolvedSpotMeta[resolvedSpotMeta.length - 1];
+
+            const [startSt, endSt] = await Promise.all([
+                firstMeta ? findNearestSubway(firstMeta.lat, firstMeta.lng, places) : Promise.resolve(null),
+                lastMeta ? findNearestSubway(lastMeta.lat, lastMeta.lng, places) : Promise.resolve(null)
+            ]);
+
+            if (typeof expectedToken === 'number' && expectedToken !== mapRenderToken) return;
+
+            startStationMeta = startSt;
+            endStationMeta = endSt;
+
+            drawRouteOnMap();
+            renderTimelineCards();
+            updateRouteSummary();
+        }
+
+        function drawRouteOnMap() {
+            if (!kakaoSdkReady || !kakaoMap) return;
+            clearMapObjects();
+
+            const dong = document.getElementById('dong-select').value;
             const pathCoords = [];
             const bounds = new window.kakao.maps.LatLngBounds();
 
-            results.forEach((meta, idx) => {
+            resolvedSpotMeta.forEach((meta, idx) => {
                 if (!meta) return;
                 const pos = new window.kakao.maps.LatLng(meta.lat, meta.lng);
                 pathCoords.push(pos);
                 bounds.extend(pos);
 
-                // Update timeline card address subtitle if a specific road address was resolved
-                const addrEl = document.getElementById(`step-addr-${idx}`);
-                if (addrEl && meta.roadAddress) {
-                    const label = meta.placeName && meta.placeName !== currentSteps[idx].item.name
-                        ? `${meta.placeName} · ${meta.roadAddress}`
-                        : meta.roadAddress;
-                    addrEl.innerHTML = `<i class="fa-solid fa-location-dot text-sage-500 mr-1"></i>${escapeHtml(label)}`;
-                }
-
-                // Create numbered step marker via CustomOverlay
+                const stepObj = currentSteps[idx];
                 const markerEl = document.createElement('button');
                 markerEl.type = 'button';
                 markerEl.className = 'kakao-step-marker';
-                markerEl.style.backgroundColor = STEP_MARKER_COLORS[idx % STEP_MARKER_COLORS.length];
+                markerEl.style.backgroundColor = STEP_MARKER_COLORS[stepObj.colorIdx];
                 markerEl.textContent = String(idx + 1);
-                markerEl.title = currentSteps[idx].item.name;
+                markerEl.title = stepObj.item.name;
                 markerEl.addEventListener('click', () => focusStepOnMap(idx));
 
                 const overlay = new window.kakao.maps.CustomOverlay({
                     position: pos,
                     content: markerEl,
                     yAnchor: 0.5,
-                    zIndex: 3
+                    zIndex: 4
                 });
                 overlay.setMap(kakaoMap);
                 mapOverlays.push(overlay);
@@ -1136,18 +1461,205 @@
                     path: pathCoords,
                     strokeWeight: 4,
                     strokeColor: '#5c835c',
-                    strokeOpacity: 0.8,
+                    strokeOpacity: 0.85,
                     strokeStyle: 'shortdash'
                 });
                 mapPolyline.setMap(kakaoMap);
             }
 
+            // Draw GPS user origin marker & connector line to Step 1
+            if (userOrigin && pathCoords.length > 0) {
+                const userPos = new window.kakao.maps.LatLng(userOrigin.lat, userOrigin.lng);
+                const userDot = document.createElement('div');
+                userDot.className = 'kakao-user-marker';
+                userDot.title = '내 위치';
+
+                const userOverlay = new window.kakao.maps.CustomOverlay({
+                    position: userPos,
+                    content: userDot,
+                    yAnchor: 0.5,
+                    zIndex: 5
+                });
+                userOverlay.setMap(kakaoMap);
+                mapOverlays.push(userOverlay);
+
+                originPolyline = new window.kakao.maps.Polyline({
+                    path: [userPos, pathCoords[0]],
+                    strokeWeight: 3,
+                    strokeColor: '#2563eb',
+                    strokeOpacity: 0.75,
+                    strokeStyle: 'dot'
+                });
+                originPolyline.setMap(kakaoMap);
+                bounds.extend(userPos);
+            }
+
+            // Draw Subway Station Badges (Idea 5)
+            const addStationOverlay = (station, roleLabel) => {
+                if (!station) return;
+                const stPos = new window.kakao.maps.LatLng(station.lat, station.lng);
+                const badge = document.createElement('div');
+                badge.className = 'kakao-station-badge';
+                badge.innerHTML = `<i class="fa-solid fa-train-subway text-amber-400"></i><span>${escapeHtml(roleLabel)}: ${escapeHtml(station.name)}</span>`;
+
+                const ov = new window.kakao.maps.CustomOverlay({
+                    position: stPos,
+                    content: badge,
+                    yAnchor: 1.35,
+                    zIndex: 2
+                });
+                ov.setMap(kakaoMap);
+                mapOverlays.push(ov);
+                bounds.extend(stPos);
+            };
+
+            if (startStationMeta && endStationMeta && startStationMeta.name === endStationMeta.name) {
+                addStationOverlay(startStationMeta, '출발·귀가');
+            } else {
+                addStationOverlay(startStationMeta, '출발역');
+                addStationOverlay(endStationMeta, '귀가역');
+            }
+
             if (pathCoords.length > 0) {
                 currentBounds = bounds;
-                kakaoMap.setBounds(bounds, 50, 50, 50, 50);
+                kakaoMap.setBounds(bounds, 55, 55, 55, 55);
                 document.getElementById('map-status-text').innerText = `${dong} ${pathCoords.length}개 스팟 동선 연결 완료`;
             } else {
                 document.getElementById('map-status-text').innerText = `${dong} 위치 좌표를 찾지 못했습니다`;
+            }
+        }
+
+        // Idea 2: Optimize 4-step visiting order to minimize total distance
+        function toggleOptimizeRoute() {
+            if (!kakaoSdkReady || !resolvedSpotMeta.every(Boolean)) {
+                showToast("지도 좌표가 모두 불러와진 뒤 최적 동선 정렬이 가능합니다.");
+                return;
+            }
+
+            if (isRouteOptimized) {
+                currentSteps = defaultStepsBackup.slice();
+                resolvedSpotMeta = defaultMetaBackup.slice();
+                isRouteOptimized = false;
+                updateOptimizeButtonUI();
+                refreshStationsAndDraw();
+                showToast("기본 추천 순서로 되돌렸습니다.");
+                return;
+            }
+
+            const calcOrderDistance = (perm) => {
+                let total = 0;
+                if (userOrigin) {
+                    total += calcWalkMetrics(userOrigin.lat, userOrigin.lng, resolvedSpotMeta[perm[0]].lat, resolvedSpotMeta[perm[0]].lng).meters;
+                }
+                for (let i = 0; i < perm.length - 1; i++) {
+                    const a = resolvedSpotMeta[perm[i]];
+                    const b = resolvedSpotMeta[perm[i + 1]];
+                    total += calcWalkMetrics(a.lat, a.lng, b.lat, b.lng).meters;
+                }
+                return total;
+            };
+
+            const perms = [];
+            const permute = (arr, m = []) => {
+                if (arr.length === 0) {
+                    perms.push(m);
+                } else {
+                    for (let i = 0; i < arr.length; i++) {
+                        const curr = arr.slice();
+                        const next = curr.splice(i, 1);
+                        permute(curr, m.concat(next));
+                    }
+                }
+            };
+            permute([0, 1, 2, 3]);
+
+            const currentDist = calcOrderDistance([0, 1, 2, 3]);
+            let bestPerm = [0, 1, 2, 3];
+            let bestDist = currentDist;
+
+            perms.forEach(p => {
+                const d = calcOrderDistance(p);
+                if (d < bestDist) {
+                    bestDist = d;
+                    bestPerm = p;
+                }
+            });
+
+            if (bestPerm.join(',') === '0,1,2,3') {
+                showToast("현재 순서가 이미 가장 효율적인 최단 동선입니다!");
+                return;
+            }
+
+            const savedMeters = currentDist - bestDist;
+            currentSteps = bestPerm.map(i => defaultStepsBackup[i]);
+            resolvedSpotMeta = bestPerm.map(i => defaultMetaBackup[i]);
+            isRouteOptimized = true;
+            updateOptimizeButtonUI();
+            refreshStationsAndDraw();
+            showToast(`최적 동선으로 재정렬해 약 ${formatDistance(savedMeters)} 단축했습니다!`);
+        }
+
+        function updateOptimizeButtonUI() {
+            const btn = document.getElementById('btn-optimize-route');
+            if (!btn) return;
+            if (isRouteOptimized) {
+                btn.className = "px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white border border-amber-500 rounded-xl font-semibold transition flex items-center gap-1.5";
+                btn.innerHTML = `<i class="fa-solid fa-rotate-left"></i><span>기본 순서로</span>`;
+            } else {
+                btn.className = "px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/70 rounded-xl font-semibold transition flex items-center gap-1.5";
+                btn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i><span>최적 동선 정렬</span>`;
+            }
+        }
+
+        // Idea 5: GPS "내 위치에서 출발" toggle
+        function toggleGpsStart() {
+            if (userOrigin) {
+                userOrigin = null;
+                updateGpsButtonUI(false);
+                drawRouteOnMap();
+                renderTimelineCards();
+                showToast("내 위치 출발 설정이 해제되었습니다.");
+                return;
+            }
+
+            if (!navigator.geolocation) {
+                showToast("이 브라우저는 위치 정보(GPS)를 지원하지 않습니다.");
+                return;
+            }
+
+            showToast("현재 위치를 확인하는 중...");
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    userOrigin = {
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude,
+                        label: "내 위치"
+                    };
+                    updateGpsButtonUI(true);
+                    drawRouteOnMap();
+                    renderTimelineCards();
+                    showToast("내 위치에서 1번 스팟까지의 출발 동선이 연결되었습니다!");
+                },
+                (err) => {
+                    if (err.code === 1) {
+                        showToast("위치 권한이 거부되었습니다. 브라우저 위치 권한을 허용해 주세요.");
+                    } else {
+                        showToast("현재 위치를 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+                    }
+                },
+                { enableHighAccuracy: true, timeout: 8000 }
+            );
+        }
+
+        function updateGpsButtonUI(active) {
+            const btn = document.getElementById('btn-gps-start');
+            if (!btn) return;
+            if (active) {
+                btn.className = "px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white border border-blue-600 rounded-xl font-semibold transition flex items-center gap-1.5";
+                btn.innerHTML = `<i class="fa-solid fa-location-crosshairs"></i><span>내 위치 해제</span>`;
+            } else {
+                btn.className = "px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/70 rounded-xl font-semibold transition flex items-center gap-1.5";
+                btn.innerHTML = `<i class="fa-solid fa-location-arrow"></i><span>내 위치에서 출발</span>`;
             }
         }
 
@@ -1157,7 +1669,7 @@
                 activeInfoOverlay.setMap(null);
                 activeInfoOverlay = null;
             }
-            kakaoMap.setBounds(currentBounds, 50, 50, 50, 50);
+            kakaoMap.setBounds(currentBounds, 55, 55, 55, 55);
         }
 
         function focusStepOnMap(idx) {
@@ -1197,7 +1709,7 @@
             cardEl.className = 'kakao-info-card';
             cardEl.innerHTML = `
                 <div class="flex items-start justify-between gap-2 mb-1">
-                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded text-white" style="background:${STEP_MARKER_COLORS[idx % 4]}">${escapeHtml(stepObj.step)}</span>
+                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded text-white" style="background:${STEP_MARKER_COLORS[stepObj.colorIdx]}">${idx + 1}코스</span>
                     <button type="button" class="text-slate-400 hover:text-slate-600 text-xs leading-none" aria-label="닫기">&times;</button>
                 </div>
                 <div class="text-xs font-bold text-slate-800 truncate">${safeTitle}</div>
@@ -1258,7 +1770,7 @@
             const item = stepObj.item;
             const meta = resolvedSpotMeta[idx];
 
-            document.getElementById('modal-step-badge').innerText = `${stepObj.step} · ${stepObj.cat}`;
+            document.getElementById('modal-step-badge').innerText = `${idx + 1}코스 · ${stepObj.cat}`;
             document.getElementById('modal-title').innerText = item.name;
             document.getElementById('modal-theme').innerText = item.theme || "추천 스팟";
             document.getElementById('modal-desc').innerText = item.desc;
@@ -1348,15 +1860,11 @@
 
         function saveCurrentCourse() {
             const dong = document.getElementById('dong-select').value;
-            const sido = document.getElementById('sido-select').value;
-            const sigungu = document.getElementById('sigungu-select').value;
-            const areaData = generateDynamicCourse(sido, sigungu, dong);
-            const activityItem = getSelectedActivity(areaData, currentTheme);
 
             const courseObj = {
                 id: Date.now(),
-                title: `${dong} (${currentTheme === '전체' ? '기본' : currentTheme}) 코스`,
-                items: [areaData.walk.name, areaData.food.name, activityItem.name, areaData.cafe.name],
+                title: `${dong} (${currentTheme === '전체' ? '기본' : currentTheme}${isRouteOptimized ? ' · 최적동선' : ''}) 코스`,
+                items: currentSteps.map(s => s.item.name),
                 date: new Date().toLocaleDateString('ko-KR')
             };
 
@@ -1405,12 +1913,11 @@
 
         function shareCourse() {
             const dong = document.getElementById('dong-select').value;
-            const sido = document.getElementById('sido-select').value;
-            const sigungu = document.getElementById('sigungu-select').value;
-            const areaData = generateDynamicCourse(sido, sigungu, dong);
-            const act = getSelectedActivity(areaData, currentTheme);
+            const lines = currentSteps.map((s, i) => `${i + 1}. ${s.cat}: ${s.item.name}`);
+            const stayText = document.getElementById('summary-stay-time').innerText;
+            const walkText = document.getElementById('summary-walk-distance').innerText;
 
-            const shareText = `[나홀로 코스] ${dong} 추천 코스\n- 산책: ${areaData.walk.name}\n- 혼밥: ${areaData.food.name}\n- 체험: ${act.name}\n- 카페: ${areaData.cafe.name}`;
+            const shareText = `[나홀로 코스] ${dong} 추천 코스\n${lines.join('\n')}\n(체류: ${stayText} / 이동: ${walkText})`;
 
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(shareText).then(() => {
