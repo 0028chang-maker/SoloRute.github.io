@@ -83,6 +83,38 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
         }
+
+        /* Kakao Map Custom Overlays */
+        .kakao-step-marker {
+            width: 32px;
+            height: 32px;
+            border-radius: 9999px;
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2.5px solid #ffffff;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.28);
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .kakao-step-marker:hover,
+        .kakao-step-marker.active {
+            transform: scale(1.18);
+            box-shadow: 0 6px 14px rgba(15, 23, 42, 0.38);
+        }
+        .kakao-info-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 10px 12px;
+            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.18);
+            min-width: 190px;
+            max-width: 240px;
+            font-family: 'Noto Sans KR', sans-serif;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col justify-between antialiased selection:bg-sage-100 selection:text-sage-700">
@@ -225,13 +257,93 @@
             </div>
         </div>
 
-        <!-- Timeline Route Container -->
-        <div class="relative pl-2 sm:pl-4 mb-12">
-            <!-- Vertical Line -->
-            <div class="timeline-line"></div>
+        <!-- Course Timeline & Interactive Kakao Map -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mb-12">
+            <!-- Kakao Map Panel (Top on mobile, Right sticky on desktop) -->
+            <section class="lg:col-span-5 lg:order-2 lg:sticky lg:top-24 bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm">
+                <div class="flex items-center justify-between gap-2 mb-3">
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                            <i class="fa-solid fa-map-location-dot text-sage-500"></i>
+                            <span>코스 동선 지도</span>
+                        </h4>
+                        <p id="map-status-text" class="text-[11px] text-slate-400 mt-0.5">코스의 4개 스팟 위치를 한눈에 확인하세요</p>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button onclick="fitMapBounds()" id="map-fit-btn" class="hidden px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-semibold transition">
+                            <i class="fa-solid fa-expand mr-1"></i>전체 동선
+                        </button>
+                        <button onclick="toggleApiKeyPanel()" class="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/70 rounded-lg text-[11px] font-semibold transition" title="카카오맵 API 키 설정">
+                            <i class="fa-solid fa-key mr-1"></i>API 키
+                        </button>
+                    </div>
+                </div>
 
-            <div id="course-container" class="space-y-6 relative z-10">
-                <!-- Step Cards injected dynamically -->
+                <!-- API Key Setup Panel (shown when key missing/invalid or toggled) -->
+                <div id="kakao-key-panel" class="hidden mb-3 p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl text-xs space-y-2.5">
+                    <div class="flex items-start justify-between gap-2">
+                        <p class="font-bold text-amber-900">
+                            <i class="fa-solid fa-circle-info text-amber-500 mr-1"></i>카카오맵 JavaScript 키 입력
+                        </p>
+                        <button onclick="toggleApiKeyPanel(false)" class="text-amber-700 hover:text-amber-900">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-amber-800 leading-relaxed">
+                        카카오 디벨로퍼스에서 발급받은 <strong>JavaScript 키</strong>를 입력하거나, HTML 코드 상단의 <code class="bg-amber-100 px-1 rounded">KAKAO_MAP_APP_KEY</code> 값을 수정해 주세요.
+                        (Web 플랫폼 도메인: <code class="bg-amber-100 px-1 rounded">https://0028chang-maker.github.io</code>)
+                    </p>
+                    <div class="flex gap-1.5">
+                        <input id="kakao-key-input" type="text" placeholder="JavaScript 키 붙여넣기" class="flex-1 min-w-0 px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sage-500">
+                        <button onclick="saveKakaoKeyFromInput()" class="px-3 py-1.5 bg-sage-500 hover:bg-sage-600 text-white font-semibold rounded-lg text-xs whitespace-nowrap transition">
+                            적용
+                        </button>
+                    </div>
+                    <div id="kakao-key-saved-row" class="hidden flex items-center justify-between text-[11px] text-amber-700 pt-1">
+                        <span>브라우저에 저장된 API 키가 적용 중입니다.</span>
+                        <button onclick="clearSavedKakaoKey()" class="underline hover:text-rose-600">저장된 키 삭제</button>
+                    </div>
+                </div>
+
+                <!-- Map Container -->
+                <div class="relative w-full h-[320px] sm:h-[380px] lg:h-[440px] rounded-xl overflow-hidden bg-slate-100 border border-slate-200/80">
+                    <div id="kakao-map" class="w-full h-full"></div>
+
+                    <!-- Fallback / Empty Overlay -->
+                    <div id="kakao-map-overlay" class="absolute inset-0 z-10 bg-slate-50/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+                        <div class="w-12 h-12 rounded-2xl bg-yellow-100 text-yellow-600 flex items-center justify-center text-xl mb-3 shadow-sm">
+                            <i class="fa-solid fa-map-pin"></i>
+                        </div>
+                        <h5 id="map-overlay-title" class="text-sm font-bold text-slate-800 mb-1">카카오맵 API 키 연동이 필요합니다</h5>
+                        <p id="map-overlay-desc" class="text-xs text-slate-500 leading-relaxed max-w-xs mb-4">
+                            상단의 <strong>API 키</strong> 버튼을 눌러 카카오 JavaScript 키를 입력하면 이 영역에 실시간 동선 지도가 표시됩니다.
+                        </p>
+                        <button onclick="toggleApiKeyPanel(true)" class="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold rounded-xl text-xs shadow-sm transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-key"></i> 지금 API 키 입력하기
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Map Step Legend -->
+                <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+                    <div class="flex flex-wrap items-center gap-2.5">
+                        <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-emerald-500 text-white text-[10px] font-bold inline-flex items-center justify-center">1</span>산책</span>
+                        <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold inline-flex items-center justify-center">2</span>혼밥</span>
+                        <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-indigo-500 text-white text-[10px] font-bold inline-flex items-center justify-center">3</span>컨텐츠</span>
+                        <span class="inline-flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-bold inline-flex items-center justify-center">4</span>카페</span>
+                    </div>
+                    <span class="text-[10px] text-slate-400">마커 클릭 시 장소 정보 확인</span>
+                </div>
+            </section>
+
+            <!-- Timeline Route Container -->
+            <div class="lg:col-span-7 lg:order-1 relative pl-2 sm:pl-4">
+                <!-- Vertical Line -->
+                <div class="timeline-line"></div>
+
+                <div id="course-container" class="space-y-6 relative z-10">
+                    <!-- Step Cards injected dynamically -->
+                </div>
             </div>
         </div>
 
@@ -263,12 +375,20 @@
     <!-- Spot Detail Modal -->
     <div id="detail-modal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl transform transition-all">
-            <div class="relative h-48 bg-slate-100 flex items-center justify-center overflow-hidden">
+            <div class="relative h-52 bg-slate-100 flex items-center justify-center overflow-hidden">
                 <img id="modal-img" src="" alt="Spot Image" class="w-full h-full object-cover">
-                <button onclick="closeModal('detail-modal')" class="absolute top-3 right-3 bg-black/50 hover:bg-black/70 text-white w-8 h-8 rounded-full flex items-center justify-center transition">
+                <div id="modal-mini-map" class="hidden w-full h-full"></div>
+
+                <!-- Media Mode Toggle (Photo vs Kakao Mini-Map) -->
+                <div id="modal-media-toggle" class="hidden absolute top-3 left-3 z-10 bg-white/90 backdrop-blur-sm rounded-full p-1 shadow flex items-center gap-1 text-[11px] font-semibold">
+                    <button id="modal-tab-photo" onclick="switchModalMedia('photo')" class="px-2.5 py-1 rounded-full bg-sage-500 text-white transition">사진</button>
+                    <button id="modal-tab-map" onclick="switchModalMedia('map')" class="px-2.5 py-1 rounded-full text-slate-600 hover:text-slate-900 transition">지도</button>
+                </div>
+
+                <button onclick="closeModal('detail-modal')" class="absolute top-3 right-3 z-10 bg-black/50 hover:bg-black/70 text-white w-8 h-8 rounded-full flex items-center justify-center transition">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
-                <span id="modal-step-badge" class="absolute bottom-3 left-3 bg-sage-500 text-white text-xs font-bold px-2.5 py-1 rounded-md shadow">
+                <span id="modal-step-badge" class="absolute bottom-3 left-3 z-10 bg-sage-500 text-white text-xs font-bold px-2.5 py-1 rounded-md shadow">
                     1단계 · 산책
                 </span>
             </div>
@@ -298,11 +418,14 @@
                 </div>
 
                 <div class="flex gap-2">
-                    <a id="modal-map-kakao" href="#" target="_blank" class="flex-1 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold rounded-xl text-xs text-center transition flex items-center justify-center gap-1.5">
-                        <i class="fa-solid fa-map"></i> 카카오맵 검색
+                    <a id="modal-map-kakao" href="#" target="_blank" rel="noopener noreferrer" class="flex-1 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold rounded-xl text-xs text-center transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-map"></i> 카카오맵 보기
                     </a>
-                    <a id="modal-map-google" href="#" target="_blank" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs text-center transition flex items-center justify-center gap-1.5">
-                        <i class="fa-brands fa-google"></i> 구글지도 검색
+                    <a id="modal-map-directions" href="#" target="_blank" rel="noopener noreferrer" class="flex-1 py-2.5 bg-sage-500 hover:bg-sage-600 text-white font-bold rounded-xl text-xs text-center transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-route"></i> 길찾기
+                    </a>
+                    <a id="modal-map-google" href="#" target="_blank" rel="noopener noreferrer" class="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs text-center transition flex items-center justify-center gap-1" title="구글지도 검색">
+                        <i class="fa-brands fa-google"></i>
                     </a>
                 </div>
             </div>
@@ -365,6 +488,17 @@
 
     <!-- JavaScript Data and Logic -->
     <script>
+        // =========================================================================
+        // [카카오맵 API 설정]
+        // 1) 카카오 디벨로퍼스(https://developers.kakao.com) > 내 애플리케이션 > 앱 키
+        //    에서 발급받은 'JavaScript 키'를 아래 KAKAO_MAP_APP_KEY에 입력하세요.
+        // 2) [플랫폼] > [Web] 사이트 도메인에 아래 주소를 반드시 등록하세요:
+        //    https://0028chang-maker.github.io
+        // 3) [카카오맵] 제품 설정에서 사용 설정(활성화)을 ON으로 켜주세요.
+        // =========================================================================
+        const KAKAO_MAP_APP_KEY = "YOUR_KAKAO_JAVASCRIPT_KEY";
+        const KAKAO_KEY_STORAGE_NAME = "solo_route_kakao_js_key";
+
         // Regional Data (Seoul & Gyeonggi Focused)
         const REGION_DATA = {
             "서울특별시": {
@@ -383,28 +517,140 @@
             }
         };
 
-        // Specific Hardcoded High-Quality Courses
+        // Specific Hardcoded High-Quality Courses (with mapQuery & fallback coords)
         const SPECIFIC_COURSES = {
             "삼청동": {
-                walk: { name: "삼청동 돌담길 & 감고당길", time: "50분", img: "https://images.unsplash.com/photo-1538485399081-7191377e8241?auto=format&fit=crop&w=600&q=80", desc: "한옥 분위기를 한껏 느끼며 조용히 골목을 걸을 수 있는 산책길입니다.", tip: "평일 오전에 방문하면 고즈넉한 풍경을 혼자 독차지할 수 있습니다." },
-                food: { name: "안국 도마 유기농 솥밥", time: "60분", img: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80", desc: "정갈한 1인 상차림으로 눈치 보지 않고 깔끔한 한식을 즐깁니다.", tip: "창가 바 테이블이 마련되어 1인 방문객이 부담 없습니다." },
-                cafe: { name: "어니언 안국", time: "60분", img: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=600&q=80", desc: "툇마루에 앉아 책을 읽으며 여유로운 커피 타임을 보냅니다.", tip: "좌식 툇마루 자리에 앉아 마당을 바라보기 좋은 명당입니다." },
+                walk: {
+                    name: "삼청동 돌담길 & 감고당길",
+                    mapQuery: "감고당길",
+                    coords: { lat: 37.5791, lng: 126.9822 },
+                    time: "50분",
+                    img: "https://images.unsplash.com/photo-1538485399081-7191377e8241?auto=format&fit=crop&w=600&q=80",
+                    desc: "한옥 분위기를 한껏 느끼며 조용히 골목을 걸을 수 있는 산책길입니다.",
+                    tip: "평일 오전에 방문하면 고즈넉한 풍경을 혼자 독차지할 수 있습니다."
+                },
+                food: {
+                    name: "안국 도마 유기농 솥밥",
+                    mapQuery: "도마 안국",
+                    coords: { lat: 37.5778, lng: 126.9845 },
+                    time: "60분",
+                    img: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80",
+                    desc: "정갈한 1인 상차림으로 눈치 보지 않고 깔끔한 한식을 즐깁니다.",
+                    tip: "창가 바 테이블이 마련되어 1인 방문객이 부담 없습니다."
+                },
+                cafe: {
+                    name: "어니언 안국",
+                    mapQuery: "카페 어니언 안국",
+                    coords: { lat: 37.5776, lng: 126.9864 },
+                    time: "60분",
+                    img: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=600&q=80",
+                    desc: "툇마루에 앉아 책을 읽으며 여유로운 커피 타임을 보냅니다.",
+                    tip: "좌식 툇마루 자리에 앉아 마당을 바라보기 좋은 명당입니다."
+                },
                 activity: {
-                    "체험": { name: "전통 매듭 공예 클래스", time: "90분", img: "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?auto=format&fit=crop&w=600&q=80", desc: "한옥 안에서 혼자 조용히 집중할 수 있는 수공예 체험입니다.", tip: "현장 방문으로도 간단한 원데이 클래스 참여가 가능합니다." },
-                    "문화": { name: "국립현대미술관 서울관", time: "90분", img: "https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=600&q=80", desc: "탁 트인 공간에서 현대 미술 작가들의 전시를 관람합니다.", tip: "수, 토 저녁 야간 개장 시간은 비교적 한적합니다." },
-                    "액티비티": { name: "인왕산 자락길 트레킹", time: "80분", img: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=600&q=80", desc: "혼자서 가볍게 걷기 좋은 경치 뛰어난 트레킹 코스입니다.", tip: "수성동 계곡 입구부터 전망대까지 다녀오기 적합합니다." },
-                    "힐링": { name: "설화수 티하우스 족욕", time: "60분", img: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80", desc: "정원에서 한방 차와 함께 피로를 푸는 힐링 공간입니다.", tip: "조용히 정원을 바라보는 바 좌석을 요청해 보세요." }
+                    "체험": {
+                        name: "전통 매듭 공예 클래스",
+                        mapQuery: "북촌 전통공예체험관",
+                        coords: { lat: 37.5819, lng: 126.9834 },
+                        time: "90분",
+                        img: "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?auto=format&fit=crop&w=600&q=80",
+                        desc: "한옥 안에서 혼자 조용히 집중할 수 있는 수공예 체험입니다.",
+                        tip: "현장 방문으로도 간단한 원데이 클래스 참여가 가능합니다."
+                    },
+                    "문화": {
+                        name: "국립현대미술관 서울관",
+                        mapQuery: "국립현대미술관 서울",
+                        coords: { lat: 37.5786, lng: 126.9801 },
+                        time: "90분",
+                        img: "https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=600&q=80",
+                        desc: "탁 트인 공간에서 현대 미술 작가들의 전시를 관람합니다.",
+                        tip: "수, 토 저녁 야간 개장 시간은 비교적 한적합니다."
+                    },
+                    "액티비티": {
+                        name: "인왕산 자락길 트레킹",
+                        mapQuery: "수성동계곡",
+                        coords: { lat: 37.5811, lng: 126.9636 },
+                        time: "80분",
+                        img: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=600&q=80",
+                        desc: "혼자서 가볍게 걷기 좋은 경치 뛰어난 트레킹 코스입니다.",
+                        tip: "수성동 계곡 입구부터 전망대까지 다녀오기 적합합니다."
+                    },
+                    "힐링": {
+                        name: "설화수 티하우스 족욕",
+                        mapQuery: "북촌 설화수의 집",
+                        coords: { lat: 37.5809, lng: 126.9844 },
+                        time: "60분",
+                        img: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80",
+                        desc: "정원에서 한방 차와 함께 피로를 푸는 힐링 공간입니다.",
+                        tip: "조용히 정원을 바라보는 바 좌석을 요청해 보세요."
+                    }
                 }
             },
             "연남동": {
-                walk: { name: "경의선 숲길 (연트럴파크)", time: "45분", img: "https://images.unsplash.com/photo-1519331379826-f10be5486c6f?auto=format&fit=crop&w=600&q=80", desc: "도심 속 숲길을 따라 늘어선 아기자기한 숍들을 구경하며 걷습니다.", tip: "소품샵들은 보통 오후 1시 이후 오픈합니다." },
-                food: { name: "연남동 윤옥 (1인 라멘)", time: "45분", img: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=600&q=80", desc: "전석 바 테이블 형태의 완벽한 1인 혼밥 라멘집입니다.", tip: "키오스크 주문 후 칸막이 좌석에 앉아 편하게 즐기세요." },
-                cafe: { name: "어쩌다 산책 서점 카페", time: "60분", img: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=600&q=80", desc: "조용한 지하 공간에서 책을 읽으며 차를 마시는 독립서점입니다.", tip: "내부가 매우 조용해 에세이를 읽기 제격입니다." },
+                walk: {
+                    name: "경의선 숲길 (연트럴파크)",
+                    mapQuery: "경의선숲길 연남동",
+                    coords: { lat: 37.5612, lng: 126.9248 },
+                    time: "45분",
+                    img: "https://images.unsplash.com/photo-1519331379826-f10be5486c6f?auto=format&fit=crop&w=600&q=80",
+                    desc: "도심 속 숲길을 따라 늘어선 아기자기한 숍들을 구경하며 걷습니다.",
+                    tip: "소품샵들은 보통 오후 1시 이후 오픈합니다."
+                },
+                food: {
+                    name: "연남동 윤옥 (1인 라멘)",
+                    mapQuery: "연남동 라멘",
+                    coords: { lat: 37.5633, lng: 126.9255 },
+                    time: "45분",
+                    img: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=600&q=80",
+                    desc: "전석 바 테이블 형태의 완벽한 1인 혼밥 라멘집입니다.",
+                    tip: "키오스크 주문 후 칸막이 좌석에 앉아 편하게 즐기세요."
+                },
+                cafe: {
+                    name: "어쩌다 산책 서점 카페",
+                    mapQuery: "연남동 독립서점",
+                    coords: { lat: 37.5625, lng: 126.9228 },
+                    time: "60분",
+                    img: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=600&q=80",
+                    desc: "조용한 지하 공간에서 책을 읽으며 차를 마시는 독립서점입니다.",
+                    tip: "내부가 매우 조용해 에세이를 읽기 제격입니다."
+                },
                 activity: {
-                    "체험": { name: "나만의 향수 조향 클래스", time: "70분", img: "https://images.unsplash.com/photo-1615397349754-cfa2066a298e?auto=format&fit=crop&w=600&q=80", desc: "내 이미지와 취향을 담은 맞춤 향수를 직접 만들어봅니다.", tip: "1인 전용 타임이 있어 타인 신경 쓰지 않고 집중 가능합니다." },
-                    "문화": { name: "연남장 복합문화공간 관람", time: "60분", img: "https://images.unsplash.com/photo-1508997449629-303059a039c0?auto=format&fit=crop&w=600&q=80", desc: "다양한 아티스트들의 전시와 팝업을 조용히 둘러봅니다.", tip: "오픈 시간에 맞춰가면 프라이빗한 관람이 가능합니다." },
-                    "액티비티": { name: "홍제천 따릉이 라이딩", time: "60분", img: "https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=600&q=80", desc: "연남동에서 홍제천을 따라 한강까지 달리는 자전거 코스입니다.", tip: "가좌역 인근에서 따릉이를 대여하면 편리합니다." },
-                    "힐링": { name: "연남 셀프 사진관", time: "30분", img: "https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&w=600&q=80", desc: "오늘 혼자 떠난 기록을 프라이빗한 부스에서 멋지게 남겨봅니다.", tip: "당당하고 솔직한 포즈를 미리 몇 개 생각하고 가세요." }
+                    "체험": {
+                        name: "나만의 향수 조향 클래스",
+                        mapQuery: "연남동 향수 공방",
+                        coords: { lat: 37.5641, lng: 126.9235 },
+                        time: "70분",
+                        img: "https://images.unsplash.com/photo-1615397349754-cfa2066a298e?auto=format&fit=crop&w=600&q=80",
+                        desc: "내 이미지와 취향을 담은 맞춤 향수를 직접 만들어봅니다.",
+                        tip: "1인 전용 타임이 있어 타인 신경 쓰지 않고 집중 가능합니다."
+                    },
+                    "문화": {
+                        name: "연남장 복합문화공간 관람",
+                        mapQuery: "연남장",
+                        coords: { lat: 37.5663, lng: 126.9278 },
+                        time: "60분",
+                        img: "https://images.unsplash.com/photo-1508997449629-303059a039c0?auto=format&fit=crop&w=600&q=80",
+                        desc: "다양한 아티스트들의 전시와 팝업을 조용히 둘러봅니다.",
+                        tip: "오픈 시간에 맞춰가면 프라이빗한 관람이 가능합니다."
+                    },
+                    "액티비티": {
+                        name: "홍제천 따릉이 라이딩",
+                        mapQuery: "홍제천 산책로 연남동",
+                        coords: { lat: 37.5675, lng: 126.9202 },
+                        time: "60분",
+                        img: "https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=600&q=80",
+                        desc: "연남동에서 홍제천을 따라 한강까지 달리는 자전거 코스입니다.",
+                        tip: "가좌역 인근에서 따릉이를 대여하면 편리합니다."
+                    },
+                    "힐링": {
+                        name: "연남 셀프 사진관",
+                        mapQuery: "연남동 셀프사진관",
+                        coords: { lat: 37.5621, lng: 126.9261 },
+                        time: "30분",
+                        img: "https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&w=600&q=80",
+                        desc: "오늘 혼자 떠난 기록을 프라이빗한 부스에서 멋지게 남겨봅니다.",
+                        tip: "당당하고 솔직한 포즈를 미리 몇 개 생각하고 가세요."
+                    }
                 }
             }
         };
@@ -414,32 +660,44 @@
             if (SPECIFIC_COURSES[dong]) {
                 return applyAddresses(SPECIFIC_COURSES[dong], sido, sigungu, dong);
             }
-            
+
+            const cleanDong = dong.replace(/\(.*\)/g, "").trim();
+            const areaKeyword = `${sigungu} ${cleanDong}`;
+
             // Dynamic Generic Content based on selected Dong
             return {
                 walk: {
-                    name: `${dong} 로컬 감성 골목 산책`, time: "40분", img: "https://images.unsplash.com/photo-1519331379826-f10be5486c6f?auto=format&fit=crop&w=600&q=80",
+                    name: `${dong} 로컬 감성 골목 산책`,
+                    mapQuery: `${areaKeyword} 공원`,
+                    time: "40분",
+                    img: "https://images.unsplash.com/photo-1519331379826-f10be5486c6f?auto=format&fit=crop&w=600&q=80",
                     desc: `${dong} 특유의 분위기를 느끼며 동네 구석구석을 여유롭게 걸어보는 나홀로 산책입니다.`,
                     tip: "음악을 들으며 발길 닿는 대로 골목을 탐험해 보세요.",
                     address: `${sido} ${sigungu} ${dong}`
                 },
                 food: {
-                    name: `${dong} 1인 셰프 맛집 (혼밥)`, time: "50분", img: "https://images.unsplash.com/photo-1547496582-1770475f0f10?auto=format&fit=crop&w=600&q=80",
-                    desc: "혼자 방문해도 눈치 보이지 않고 편안하게 즐길 수 있는 ${dong}의 숨은 혼밥 맛집입니다.",
+                    name: `${dong} 1인 셰프 맛집 (혼밥)`,
+                    mapQuery: `${areaKeyword} 맛집`,
+                    time: "50분",
+                    img: "https://images.unsplash.com/photo-1547496582-1770475f0f10?auto=format&fit=crop&w=600&q=80",
+                    desc: `혼자 방문해도 눈치 보이지 않고 편안하게 즐길 수 있는 ${dong}의 숨은 혼밥 맛집입니다.`,
                     tip: "바(Bar) 자리가 있는 식당을 방문하면 스마트폰을 보며 편하게 식사할 수 있습니다.",
                     address: `${sido} ${sigungu} ${dong}`
                 },
                 cafe: {
-                    name: `${dong} 조용한 로스터리 카페`, time: "60분", img: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=600&q=80",
+                    name: `${dong} 조용한 로스터리 카페`,
+                    mapQuery: `${areaKeyword} 카페`,
+                    time: "60분",
+                    img: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=600&q=80",
                     desc: "커피 향기에 집중하며 나만의 사색과 독서를 즐길 수 있는 분위기 좋은 카페입니다.",
                     tip: "구석 자리에 앉아 다이어리를 정리하며 하루를 마무리하기 좋습니다.",
                     address: `${sido} ${sigungu} ${dong}`
                 },
                 activity: {
-                    "체험": { name: `${dong} 원데이 공방 체험`, time: "90분", img: "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?auto=format&fit=crop&w=600&q=80", desc: `손으로 직접 무언가를 만들며 힐링하는 ${dong}의 매력적인 소규모 클래스입니다.`, tip: "혼자 클래스에 참여하면 강사님과 더 깊은 피드백을 주고받을 수 있습니다.", address: `${sido} ${sigungu} ${dong}` },
-                    "문화": { name: `${dong} 독립서점 & 복합문화공간`, time: "60분", img: "https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=600&q=80", desc: `대형 공간에서 느낄 수 없는 ${dong}만의 큐레이션과 예술적 감각을 느껴봅니다.`, tip: "천천히 공간의 분위기를 음미하며 책이나 소품을 하나 구매해 보세요.", address: `${sido} ${sigungu} ${dong}` },
-                    "액티비티": { name: `${dong} 인근 공원 따릉이/조깅`, time: "60분", img: "https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=600&q=80", desc: "몸을 움직이며 일상의 스트레스를 날려버리는 상쾌한 혼자만의 운동 시간입니다.", tip: "편안한 복장과 운동화를 챙기고 가벼운 마음으로 나서는 것을 추천합니다.", address: `${sido} ${sigungu} ${dong}` },
-                    "힐링": { name: `${dong} 힐링 테라피 스파`, time: "90분", img: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80", desc: "따뜻한 공간에서 몸과 마음을 릴렉스하며 온전한 쉼을 경험합니다.", tip: "예약을 통해 프라이빗한 1인실을 이용하면 만족도가 더욱 높습니다.", address: `${sido} ${sigungu} ${dong}` }
+                    "체험": { name: `${dong} 원데이 공방 체험`, mapQuery: `${areaKeyword} 공방`, time: "90분", img: "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?auto=format&fit=crop&w=600&q=80", desc: `손으로 직접 무언가를 만들며 힐링하는 ${dong}의 매력적인 소규모 클래스입니다.`, tip: "혼자 클래스에 참여하면 강사님과 더 깊은 피드백을 주고받을 수 있습니다.", address: `${sido} ${sigungu} ${dong}` },
+                    "문화": { name: `${dong} 독립서점 & 복합문화공간`, mapQuery: `${areaKeyword} 서점`, time: "60분", img: "https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=600&q=80", desc: `대형 공간에서 느낄 수 없는 ${dong}만의 큐레이션과 예술적 감각을 느껴봅니다.`, tip: "천천히 공간의 분위기를 음미하며 책이나 소품을 하나 구매해 보세요.", address: `${sido} ${sigungu} ${dong}` },
+                    "액티비티": { name: `${dong} 인근 공원 따릉이/조깅`, mapQuery: `${areaKeyword} 체육공원`, time: "60분", img: "https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=600&q=80", desc: "몸을 움직이며 일상의 스트레스를 날려버리는 상쾌한 혼자만의 운동 시간입니다.", tip: "편안한 복장과 운동화를 챙기고 가벼운 마음으로 나서는 것을 추천합니다.", address: `${sido} ${sigungu} ${dong}` },
+                    "힐링": { name: `${dong} 힐링 테라피 스파`, mapQuery: `${areaKeyword} 마사지`, time: "90분", img: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80", desc: "따뜻한 공간에서 몸과 마음을 릴렉스하며 온전한 쉼을 경험합니다.", tip: "예약을 통해 프라이빗한 1인실을 이용하면 만족도가 더욱 높습니다.", address: `${sido} ${sigungu} ${dong}` }
                 }
             };
         }
@@ -459,14 +717,183 @@
 
         // Application State
         let currentTheme = "전체";
+        let currentSteps = [];
         let savedCourses = JSON.parse(localStorage.getItem('solo_saved_courses') || '[]');
 
-        // Initialize App Dropdowns
+        // Kakao Map State
+        let kakaoMap = null;
+        let kakaoDetailMap = null;
+        let kakaoSdkReady = false;
+        let kakaoSdkLoading = false;
+        let mapOverlays = [];
+        let mapPolyline = null;
+        let activeInfoOverlay = null;
+        let currentBounds = null;
+        let mapRenderToken = 0;
+        let resolvedSpotMeta = []; // Stores { lat, lng, placeName, roadAddress, placeUrl } per step
+
+        const STEP_MARKER_COLORS = ["#10b981", "#f59e0b", "#6366f1", "#f43f5e"];
+
+        // Initialize App Dropdowns & Kakao Map
         window.addEventListener('DOMContentLoaded', () => {
             initSelectors();
             updateSavedCount();
+            initKakaoMapFeature();
             filterCourses();
         });
+
+        function getActiveKakaoKey() {
+            const savedKey = (localStorage.getItem(KAKAO_KEY_STORAGE_NAME) || "").trim();
+            if (savedKey) return savedKey;
+            if (KAKAO_MAP_APP_KEY && KAKAO_MAP_APP_KEY !== "YOUR_KAKAO_JAVASCRIPT_KEY") {
+                return KAKAO_MAP_APP_KEY.trim();
+            }
+            return "";
+        }
+
+        function initKakaoMapFeature() {
+            const savedKey = (localStorage.getItem(KAKAO_KEY_STORAGE_NAME) || "").trim();
+            if (savedKey) {
+                document.getElementById('kakao-key-input').value = savedKey;
+                document.getElementById('kakao-key-saved-row').classList.remove('hidden');
+            }
+
+            if (window.location.protocol === 'file:') {
+                showMapOverlay(
+                    "로컬 파일(file://)에서는 지도가 제한됩니다",
+                    "카카오맵 API는 등록된 웹 도메인(https://0028chang-maker.github.io) 또는 로컬 서버(http://localhost)에서만 동작합니다. GitHub Pages에 업로드 후 확인해 주세요."
+                );
+                return;
+            }
+
+            const appKey = getActiveKakaoKey();
+            if (!appKey) {
+                showMapOverlay(
+                    "카카오맵 API 키 연동이 필요합니다",
+                    "상단의 API 키 버튼을 눌러 카카오 JavaScript 키를 입력하거나, HTML 코드 내 KAKAO_MAP_APP_KEY를 설정해 주세요."
+                );
+                return;
+            }
+
+            loadKakaoMapSdk(appKey);
+        }
+
+        function loadKakaoMapSdk(appKey) {
+            if (kakaoSdkReady && window.kakao && window.kakao.maps) {
+                createCourseMap();
+                return;
+            }
+            if (kakaoSdkLoading) return;
+
+            kakaoSdkLoading = true;
+            document.getElementById('map-status-text').innerText = "카카오맵 SDK를 불러오는 중...";
+
+            const script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&libraries=services&autoload=false`;
+            script.async = true;
+
+            script.onload = () => {
+                kakaoSdkLoading = false;
+                if (!window.kakao || !window.kakao.maps) {
+                    showMapOverlay(
+                        "카카오맵 초기화 실패",
+                        "API 키가 올바르지 않거나 카카오 디벨로퍼스에서 Web 플랫폼 도메인(https://0028chang-maker.github.io) 및 카카오맵 사용 설정이 꺼져 있을 수 있습니다."
+                    );
+                    return;
+                }
+                window.kakao.maps.load(() => {
+                    try {
+                        kakaoSdkReady = true;
+                        createCourseMap();
+                        renderCourseOnMap();
+                    } catch (err) {
+                        console.error(err);
+                        showMapOverlay(
+                            "지도 생성 중 오류가 발생했습니다",
+                            "카카오 디벨로퍼스의 Web 도메인 등록과 JavaScript 키를 다시 확인해 주세요."
+                        );
+                    }
+                });
+            };
+
+            script.onerror = () => {
+                kakaoSdkLoading = false;
+                showMapOverlay(
+                    "카카오맵 스크립트 로드 실패",
+                    "네트워크 연결을 확인하거나, 발급받은 JavaScript 키와 도메인 등록(https://0028chang-maker.github.io)을 확인해 주세요."
+                );
+            };
+
+            document.head.appendChild(script);
+        }
+
+        function createCourseMap() {
+            const container = document.getElementById('kakao-map');
+            if (!container || kakaoMap) return;
+
+            const options = {
+                center: new window.kakao.maps.LatLng(37.5791, 126.9822),
+                level: 5
+            };
+            kakaoMap = new window.kakao.maps.Map(container, options);
+
+            // Add zoom & map type controls
+            const zoomControl = new window.kakao.maps.ZoomControl();
+            kakaoMap.addControl(zoomControl, window.kakao.maps.ControlPosition.RIGHT);
+
+            hideMapOverlay();
+            document.getElementById('map-fit-btn').classList.remove('hidden');
+        }
+
+        function showMapOverlay(title, desc) {
+            document.getElementById('map-overlay-title').innerText = title;
+            document.getElementById('map-overlay-desc').innerText = desc;
+            document.getElementById('kakao-map-overlay').classList.remove('hidden');
+            document.getElementById('map-status-text').innerText = "API 키 설정 후 동선 지도를 사용할 수 있습니다";
+        }
+
+        function hideMapOverlay() {
+            document.getElementById('kakao-map-overlay').classList.add('hidden');
+        }
+
+        function toggleApiKeyPanel(forceState) {
+            const panel = document.getElementById('kakao-key-panel');
+            if (typeof forceState === 'boolean') {
+                panel.classList.toggle('hidden', !forceState);
+            } else {
+                panel.classList.toggle('hidden');
+            }
+        }
+
+        function saveKakaoKeyFromInput() {
+            const input = document.getElementById('kakao-key-input');
+            const val = input.value.trim();
+            if (!val) {
+                showToast("카카오 JavaScript 키를 입력해 주세요.");
+                return;
+            }
+            const hadSdkLoaded = Boolean(window.kakao && window.kakao.maps);
+            localStorage.setItem(KAKAO_KEY_STORAGE_NAME, val);
+            document.getElementById('kakao-key-saved-row').classList.remove('hidden');
+            toggleApiKeyPanel(false);
+
+            if (hadSdkLoaded) {
+                showToast("새 API 키를 적용하기 위해 페이지를 새로고침합니다.");
+                setTimeout(() => location.reload(), 600);
+            } else {
+                loadKakaoMapSdk(val);
+                showToast("카카오맵 API 키가 적용되었습니다.");
+            }
+        }
+
+        function clearSavedKakaoKey() {
+            localStorage.removeItem(KAKAO_KEY_STORAGE_NAME);
+            document.getElementById('kakao-key-input').value = "";
+            document.getElementById('kakao-key-saved-row').classList.add('hidden');
+            showToast("저장된 API 키가 삭제되었습니다.");
+            setTimeout(() => location.reload(), 600);
+        }
 
         function initSelectors() {
             const sidoSelect = document.getElementById('sido-select');
@@ -517,13 +944,13 @@
             const sido = document.getElementById('sido-select').value;
             const sigungu = document.getElementById('sigungu-select').value;
             const dong = document.getElementById('dong-select').value;
-            
+
             document.getElementById('course-title-display').innerText = `${dong} 나홀로 추천 코스`;
 
             const areaData = generateDynamicCourse(sido, sigungu, dong);
             const activityItem = getSelectedActivity(areaData, currentTheme);
 
-            const steps = [
+            currentSteps = [
                 { step: "1단계", cat: "산책/탐방", icon: "fa-person-walking-luggage", color: "text-emerald-500", bg: "bg-emerald-50", item: areaData.walk },
                 { step: "2단계", cat: "혼밥 맛집", icon: "fa-utensils", color: "text-amber-500", bg: "bg-amber-50", item: areaData.food },
                 { step: "3단계", cat: `맞춤 컨텐츠 (${activityItem.theme})`, icon: "fa-icons", color: "text-indigo-500", bg: "bg-indigo-50", item: activityItem },
@@ -533,10 +960,10 @@
             const container = document.getElementById('course-container');
             container.innerHTML = "";
 
-            steps.forEach((s) => {
+            currentSteps.forEach((s, idx) => {
                 const card = document.createElement('div');
+                card.id = `course-card-${idx}`;
                 card.className = "relative flex items-start space-x-4 sm:space-x-6 card-hover bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm transition-all";
-                const itemJson = JSON.stringify(s.item).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
 
                 card.innerHTML = `
                     <div class="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-2xl ${s.bg} ${s.color} flex items-center justify-center font-bold text-lg shadow-sm border border-slate-100 z-10">
@@ -549,26 +976,261 @@
                                 ${s.step} · ${s.cat}
                             </span>
                             <span class="text-[10px] sm:text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
-                                <i class="fa-regular fa-clock mr-1"></i>${s.item.time}
+                                <i class="fa-regular fa-clock mr-1"></i>${escapeHtml(s.item.time)}
                             </span>
                         </div>
 
-                        <h4 class="text-base sm:text-lg font-bold text-slate-800 mb-1 truncate">${s.item.name}</h4>
-                        <p class="text-xs sm:text-sm text-slate-500 line-clamp-2 mb-3 leading-relaxed">${s.item.desc}</p>
+                        <h4 class="text-base sm:text-lg font-bold text-slate-800 mb-1 truncate">${escapeHtml(s.item.name)}</h4>
+                        <p class="text-xs sm:text-sm text-slate-500 line-clamp-2 mb-3 leading-relaxed">${escapeHtml(s.item.desc)}</p>
                         
-                        <div class="flex items-center justify-between pt-2 border-t border-slate-50 text-xs">
-                            <span class="text-slate-400 truncate max-w-[180px] sm:max-w-xs">
-                                <i class="fa-solid fa-location-dot text-slate-300 mr-1"></i>${s.item.address}
+                        <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-50 text-xs">
+                            <span id="step-addr-${idx}" class="text-slate-400 truncate max-w-[160px] sm:max-w-[220px]">
+                                <i class="fa-solid fa-location-dot text-slate-300 mr-1"></i>${escapeHtml(s.item.address)}
                             </span>
-                            <button onclick='openDetailModal("${s.step}", "${s.cat}", ${itemJson})' class="text-sage-600 font-semibold hover:text-sage-700 hover:underline flex items-center space-x-1 whitespace-nowrap">
-                                <span>상세보기 & 팁</span>
-                                <i class="fa-solid fa-chevron-right text-[10px]"></i>
-                            </button>
+                            <div class="flex items-center gap-3 whitespace-nowrap">
+                                <button onclick="focusStepOnMap(${idx})" class="text-slate-500 hover:text-sage-600 font-medium flex items-center space-x-1 transition" title="지도에서 위치 보기">
+                                    <i class="fa-solid fa-location-crosshairs text-[11px]"></i>
+                                    <span>지도</span>
+                                </button>
+                                <button onclick="openDetailModal(${idx})" class="text-sage-600 font-semibold hover:text-sage-700 hover:underline flex items-center space-x-1">
+                                    <span>상세보기 & 팁</span>
+                                    <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `;
                 container.appendChild(card);
             });
+
+            renderCourseOnMap();
+        }
+
+        // Clear existing markers, polyline, info overlay
+        function clearMapObjects() {
+            mapOverlays.forEach(ov => ov.setMap(null));
+            mapOverlays = [];
+            if (mapPolyline) {
+                mapPolyline.setMap(null);
+                mapPolyline = null;
+            }
+            if (activeInfoOverlay) {
+                activeInfoOverlay.setMap(null);
+                activeInfoOverlay = null;
+            }
+            currentBounds = null;
+        }
+
+        // Resolve coordinates for each step using Kakao Places + Geocoder fallback
+        async function renderCourseOnMap() {
+            if (!kakaoSdkReady || !kakaoMap || currentSteps.length === 0) return;
+
+            const token = ++mapRenderToken;
+            clearMapObjects();
+            resolvedSpotMeta = new Array(currentSteps.length).fill(null);
+
+            const sido = document.getElementById('sido-select').value;
+            const sigungu = document.getElementById('sigungu-select').value;
+            const dong = document.getElementById('dong-select').value;
+            const cleanDong = dong.replace(/\(.*\)/g, "").trim();
+
+            document.getElementById('map-status-text').innerText = `${dong} 코스 위치를 검색하는 중...`;
+
+            const places = new window.kakao.maps.services.Places();
+            const geocoder = new window.kakao.maps.services.Geocoder();
+
+            // Helper: search a single step via Places API, with fallback to preset coords or Dong Geocoder
+            const resolveStepLocation = (stepObj, idx) => {
+                return new Promise((resolve) => {
+                    const query = stepObj.item.mapQuery || `${sigungu} ${cleanDong}`;
+                    places.keywordSearch(query, (data, status) => {
+                        if (status === window.kakao.maps.services.Status.OK && data.length > 0) {
+                            const top = data[0];
+                            resolve({
+                                lat: parseFloat(top.y),
+                                lng: parseFloat(top.x),
+                                placeName: top.place_name,
+                                roadAddress: top.road_address_name || top.address_name,
+                                placeUrl: top.place_url
+                            });
+                            return;
+                        }
+                        if (stepObj.item.coords) {
+                            resolve({
+                                lat: stepObj.item.coords.lat,
+                                lng: stepObj.item.coords.lng,
+                                placeName: stepObj.item.name,
+                                roadAddress: stepObj.item.address,
+                                placeUrl: ""
+                            });
+                            return;
+                        }
+                        // Fallback: Geocode Dong center with slight visual offset so markers don't stack
+                        geocoder.addressSearch(`${sido} ${sigungu} ${cleanDong}`, (geoData, geoStatus) => {
+                            if (geoStatus === window.kakao.maps.services.Status.OK && geoData.length > 0) {
+                                const offsets = [
+                                    [0.0012, -0.0014],
+                                    [0.0005, 0.0012],
+                                    [-0.0011, 0.0008],
+                                    [-0.0006, -0.0012]
+                                ];
+                                const [dLat, dLng] = offsets[idx % offsets.length];
+                                resolve({
+                                    lat: parseFloat(geoData[0].y) + dLat,
+                                    lng: parseFloat(geoData[0].x) + dLng,
+                                    placeName: stepObj.item.name,
+                                    roadAddress: stepObj.item.address,
+                                    placeUrl: ""
+                                });
+                            } else {
+                                resolve(null);
+                            }
+                        });
+                    });
+                });
+            };
+
+            const results = await Promise.all(currentSteps.map((s, idx) => resolveStepLocation(s, idx)));
+            if (token !== mapRenderToken) return; // Ignore stale async response
+
+            resolvedSpotMeta = results;
+            const pathCoords = [];
+            const bounds = new window.kakao.maps.LatLngBounds();
+
+            results.forEach((meta, idx) => {
+                if (!meta) return;
+                const pos = new window.kakao.maps.LatLng(meta.lat, meta.lng);
+                pathCoords.push(pos);
+                bounds.extend(pos);
+
+                // Update timeline card address subtitle if a specific road address was resolved
+                const addrEl = document.getElementById(`step-addr-${idx}`);
+                if (addrEl && meta.roadAddress) {
+                    const label = meta.placeName && meta.placeName !== currentSteps[idx].item.name
+                        ? `${meta.placeName} · ${meta.roadAddress}`
+                        : meta.roadAddress;
+                    addrEl.innerHTML = `<i class="fa-solid fa-location-dot text-sage-500 mr-1"></i>${escapeHtml(label)}`;
+                }
+
+                // Create numbered step marker via CustomOverlay
+                const markerEl = document.createElement('button');
+                markerEl.type = 'button';
+                markerEl.className = 'kakao-step-marker';
+                markerEl.style.backgroundColor = STEP_MARKER_COLORS[idx % STEP_MARKER_COLORS.length];
+                markerEl.textContent = String(idx + 1);
+                markerEl.title = currentSteps[idx].item.name;
+                markerEl.addEventListener('click', () => focusStepOnMap(idx));
+
+                const overlay = new window.kakao.maps.CustomOverlay({
+                    position: pos,
+                    content: markerEl,
+                    yAnchor: 0.5,
+                    zIndex: 3
+                });
+                overlay.setMap(kakaoMap);
+                mapOverlays.push(overlay);
+            });
+
+            if (pathCoords.length > 1) {
+                mapPolyline = new window.kakao.maps.Polyline({
+                    path: pathCoords,
+                    strokeWeight: 4,
+                    strokeColor: '#5c835c',
+                    strokeOpacity: 0.8,
+                    strokeStyle: 'shortdash'
+                });
+                mapPolyline.setMap(kakaoMap);
+            }
+
+            if (pathCoords.length > 0) {
+                currentBounds = bounds;
+                kakaoMap.setBounds(bounds, 50, 50, 50, 50);
+                document.getElementById('map-status-text').innerText = `${dong} ${pathCoords.length}개 스팟 동선 연결 완료`;
+            } else {
+                document.getElementById('map-status-text').innerText = `${dong} 위치 좌표를 찾지 못했습니다`;
+            }
+        }
+
+        function fitMapBounds() {
+            if (!kakaoMap || !currentBounds) return;
+            if (activeInfoOverlay) {
+                activeInfoOverlay.setMap(null);
+                activeInfoOverlay = null;
+            }
+            kakaoMap.setBounds(currentBounds, 50, 50, 50, 50);
+        }
+
+        function focusStepOnMap(idx) {
+            const stepObj = currentSteps[idx];
+            const meta = resolvedSpotMeta[idx];
+
+            // Highlight selected timeline card briefly
+            document.querySelectorAll('[id^="course-card-"]').forEach((el, i) => {
+                el.classList.toggle('ring-2', i === idx);
+                el.classList.toggle('ring-sage-500', i === idx);
+            });
+
+            if (!kakaoSdkReady || !kakaoMap || !meta) {
+                if (!getActiveKakaoKey()) {
+                    toggleApiKeyPanel(true);
+                    showToast("먼저 카카오맵 API 키를 입력해 주세요.");
+                } else {
+                    showToast("해당 장소의 지도 좌표를 불러오는 중입니다.");
+                }
+                return;
+            }
+
+            const pos = new window.kakao.maps.LatLng(meta.lat, meta.lng);
+            kakaoMap.panTo(pos);
+
+            if (activeInfoOverlay) {
+                activeInfoOverlay.setMap(null);
+            }
+
+            const safeTitle = escapeHtml(stepObj.item.name);
+            const safePlace = escapeHtml(meta.placeName || stepObj.item.name);
+            const safeAddr = escapeHtml(meta.roadAddress || stepObj.item.address);
+            const dirUrl = `https://map.kakao.com/link/to/${encodeURIComponent(meta.placeName || stepObj.item.name)},${meta.lat},${meta.lng}`;
+            const detailUrl = meta.placeUrl || `https://map.kakao.com/link/map/${encodeURIComponent(meta.placeName || stepObj.item.name)},${meta.lat},${meta.lng}`;
+
+            const cardEl = document.createElement('div');
+            cardEl.className = 'kakao-info-card';
+            cardEl.innerHTML = `
+                <div class="flex items-start justify-between gap-2 mb-1">
+                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded text-white" style="background:${STEP_MARKER_COLORS[idx % 4]}">${escapeHtml(stepObj.step)}</span>
+                    <button type="button" class="text-slate-400 hover:text-slate-600 text-xs leading-none" aria-label="닫기">&times;</button>
+                </div>
+                <div class="text-xs font-bold text-slate-800 truncate">${safeTitle}</div>
+                ${safePlace !== safeTitle ? `<div class="text-[11px] text-sage-600 font-medium truncate mt-0.5">추천 스팟: ${safePlace}</div>` : ''}
+                <div class="text-[10px] text-slate-400 truncate mt-0.5 mb-2">${safeAddr}</div>
+                <div class="flex items-center gap-1.5 text-[11px] font-semibold">
+                    <a href="${detailUrl}" target="_blank" rel="noopener noreferrer" class="flex-1 text-center py-1 bg-yellow-400 hover:bg-yellow-500 text-slate-900 rounded-md transition">카카오맵</a>
+                    <a href="${dirUrl}" target="_blank" rel="noopener noreferrer" class="flex-1 text-center py-1 bg-sage-500 hover:bg-sage-600 text-white rounded-md transition">길찾기</a>
+                </div>
+            `;
+            cardEl.querySelector('button').addEventListener('click', () => {
+                if (activeInfoOverlay) {
+                    activeInfoOverlay.setMap(null);
+                    activeInfoOverlay = null;
+                }
+            });
+
+            activeInfoOverlay = new window.kakao.maps.CustomOverlay({
+                position: pos,
+                content: cardEl,
+                yAnchor: 1.28,
+                zIndex: 10
+            });
+            activeInfoOverlay.setMap(kakaoMap);
+        }
+
+        function escapeHtml(str) {
+            return String(str || "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
         }
 
         function getSelectedActivity(areaData, theme) {
@@ -586,21 +1248,87 @@
         }
 
         // UI Modals and Utilities
-        function openDetailModal(step, cat, item) {
-            document.getElementById('modal-step-badge').innerText = `${step} · ${cat}`;
+        let activeModalStepIdx = 0;
+
+        function openDetailModal(idx) {
+            const stepObj = currentSteps[idx];
+            if (!stepObj) return;
+            activeModalStepIdx = idx;
+
+            const item = stepObj.item;
+            const meta = resolvedSpotMeta[idx];
+
+            document.getElementById('modal-step-badge').innerText = `${stepObj.step} · ${stepObj.cat}`;
             document.getElementById('modal-title').innerText = item.name;
             document.getElementById('modal-theme').innerText = item.theme || "추천 스팟";
             document.getElementById('modal-desc').innerText = item.desc;
             document.getElementById('modal-tip').innerText = item.tip;
             document.getElementById('modal-time').innerText = item.time;
-            document.getElementById('modal-addr').innerText = item.address;
+            document.getElementById('modal-addr').innerText = (meta && meta.roadAddress) ? meta.roadAddress : item.address;
             document.getElementById('modal-img').src = item.img;
 
-            const encodedQuery = encodeURIComponent(`${item.address} ${item.name.replace(/\s*\(.*\)\s*/g, '')}`); // Remove parentheses for search
-            document.getElementById('modal-map-kakao').href = `https://map.kakao.com/?q=${encodedQuery}`;
+            const encodedQuery = encodeURIComponent(`${item.address} ${item.name.replace(/\s*\(.*\)\s*/g, '')}`);
+            if (meta && meta.lat && meta.lng) {
+                const label = encodeURIComponent(meta.placeName || item.name);
+                document.getElementById('modal-map-kakao').href = meta.placeUrl || `https://map.kakao.com/link/map/${label},${meta.lat},${meta.lng}`;
+                document.getElementById('modal-map-directions').href = `https://map.kakao.com/link/to/${label},${meta.lat},${meta.lng}`;
+            } else {
+                document.getElementById('modal-map-kakao').href = `https://map.kakao.com/?q=${encodedQuery}`;
+                document.getElementById('modal-map-directions').href = `https://map.kakao.com/?q=${encodedQuery}`;
+            }
             document.getElementById('modal-map-google').href = `https://www.google.com/maps/search/?api=1&query=${encodedQuery}`;
 
+            // Show Photo/Map toggle if Kakao Map SDK is active and coordinates resolved
+            const toggleEl = document.getElementById('modal-media-toggle');
+            if (kakaoSdkReady && meta) {
+                toggleEl.classList.remove('hidden');
+            } else {
+                toggleEl.classList.add('hidden');
+            }
+            switchModalMedia('photo');
+
             document.getElementById('detail-modal').classList.remove('hidden');
+        }
+
+        function switchModalMedia(mode) {
+            const imgEl = document.getElementById('modal-img');
+            const mapEl = document.getElementById('modal-mini-map');
+            const tabPhoto = document.getElementById('modal-tab-photo');
+            const tabMap = document.getElementById('modal-tab-map');
+
+            if (mode === 'map' && kakaoSdkReady && resolvedSpotMeta[activeModalStepIdx]) {
+                imgEl.classList.add('hidden');
+                mapEl.classList.remove('hidden');
+                tabMap.classList.add('bg-sage-500', 'text-white');
+                tabMap.classList.remove('text-slate-600');
+                tabPhoto.classList.remove('bg-sage-500', 'text-white');
+                tabPhoto.classList.add('text-slate-600');
+
+                const meta = resolvedSpotMeta[activeModalStepIdx];
+                const pos = new window.kakao.maps.LatLng(meta.lat, meta.lng);
+                if (!kakaoDetailMap) {
+                    kakaoDetailMap = new window.kakao.maps.Map(mapEl, { center: pos, level: 3 });
+                } else {
+                    kakaoDetailMap.relayout();
+                    kakaoDetailMap.setCenter(pos);
+                }
+
+                // Clear old marker in mini-map by recreating marker instance stored on mapEl
+                if (mapEl._activeMarker) {
+                    mapEl._activeMarker.setMap(null);
+                }
+                mapEl._activeMarker = new window.kakao.maps.Marker({
+                    map: kakaoDetailMap,
+                    position: pos
+                });
+            } else {
+                mapEl.classList.add('hidden');
+                imgEl.classList.remove('hidden');
+                tabPhoto.classList.add('bg-sage-500', 'text-white');
+                tabPhoto.classList.remove('text-slate-600');
+                tabMap.classList.remove('bg-sage-500', 'text-white');
+                tabMap.classList.add('text-slate-600');
+            }
         }
 
         function closeModal(modalId) {
@@ -654,10 +1382,10 @@
                     card.innerHTML = `
                         <div>
                             <div class="flex items-center space-x-2 mb-1">
-                                <span class="font-bold text-slate-800">${item.title}</span>
-                                <span class="text-[10px] text-slate-400">${item.date}</span>
+                                <span class="font-bold text-slate-800">${escapeHtml(item.title)}</span>
+                                <span class="text-[10px] text-slate-400">${escapeHtml(item.date)}</span>
                             </div>
-                            <p class="text-slate-500 truncate max-w-xs">${item.items.join(" → ")}</p>
+                            <p class="text-slate-500 truncate max-w-xs">${escapeHtml(item.items.join(" → "))}</p>
                         </div>
                         <button onclick="deleteSavedCourse(${item.id})" class="text-slate-400 hover:text-rose-500 p-1.5 transition"><i class="fa-solid fa-trash-can"></i></button>
                     `;
@@ -681,12 +1409,22 @@
             const sigungu = document.getElementById('sigungu-select').value;
             const areaData = generateDynamicCourse(sido, sigungu, dong);
             const act = getSelectedActivity(areaData, currentTheme);
-            
+
             const shareText = `[나홀로 코스] ${dong} 추천 코스\n- 산책: ${areaData.walk.name}\n- 혼밥: ${areaData.food.name}\n- 체험: ${act.name}\n- 카페: ${areaData.cafe.name}`;
-            
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(shareText).then(() => {
+                    showToast("코스 정보가 클립보드에 복사되었습니다!");
+                }).catch(() => fallbackCopyText(shareText));
+            } else {
+                fallbackCopyText(shareText);
+            }
+        }
+
+        function fallbackCopyText(text) {
             const dummy = document.createElement("textarea");
             document.body.appendChild(dummy);
-            dummy.value = shareText;
+            dummy.value = text;
             dummy.select();
             document.execCommand("copy");
             document.body.removeChild(dummy);
@@ -722,7 +1460,7 @@
                 const rSigungu = sigungus[Math.floor(Math.random() * sigungus.length)];
                 const dongs = REGION_DATA[rSido][rSigungu];
                 const rDong = dongs[Math.floor(Math.random() * dongs.length)];
-                
+
                 const themes = ["체험", "문화", "액티비티", "힐링"];
                 rouletteResultTheme = themes[Math.floor(Math.random() * themes.length)];
                 rouletteLoc = { sido: rSido, sigungu: rSigungu, dong: rDong };
@@ -751,7 +1489,7 @@
             document.getElementById('sigungu-select').value = rouletteLoc.sigungu;
             updateDong();
             document.getElementById('dong-select').value = rouletteLoc.dong;
-            
+
             setTheme(rouletteResultTheme);
             closeModal('roulette-modal');
             showToast(`${rouletteLoc.dong} [${rouletteResultTheme}] 코스가 설정되었습니다!`);
